@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Next-Day Market-Open Predictor — NSE</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🔔</span>
+      <div>
+        <h1>Next-Day Open Predictor</h1>
+        <p class="tagline">NSE stocks most likely to open higher tomorrow · overnight global cues</p>
+      </div>
+    </div>
+    <div class="actions">
+      <span id="generated" class="generated"></span>
+      <button id="refreshBtn" class="btn">↻ Refresh</button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner hidden"></div>
+
+  <main id="content" class="content">
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p id="loadingText">Reading global markets, futures, commodities &amp; ADRs… (~30–60s)</p>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p id="disclaimer"></p>
+    <p class="muted">Educational tool — not investment advice. Data via Yahoo Finance. No prediction is guaranteed.</p>
+  </footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}?v=20"></script>
+</body>
+</html>
