@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: india-market-analysis
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PICKS
+        value: "8"
+      - key: TOP_SECTORS
+        value: "3"
+      - key: PER_SECTOR
+        value: "6"
+      - key: INCLUDE_NEWS
+        value: "1"
