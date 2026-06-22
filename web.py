@@ -23,6 +23,7 @@ import traceback
 from flask import Flask, jsonify, render_template, request
 
 from market_sentiment import build_premarket
+import db
 
 app = Flask(__name__)
 
@@ -40,6 +41,8 @@ def _compute(force: bool):
         _state["ts"] = time.time()
         _state["status"] = "ready"
         _state["error"] = None
+        # Persist the whole payload as JSON under a single key.
+        db.save(data)
     except Exception as e:  # noqa: BLE001
         _state["error"] = str(e)
         _state["status"] = "error"
@@ -87,7 +90,13 @@ def healthz():
     return jsonify({"ok": True, "status": _state["status"]})
 
 
-# Warm the prediction on startup.
+# Warm from Postgres first (instant + survives restarts), then refresh live.
+db.init_db()
+_cached = db.load()
+if _cached:
+    _state["data"] = _cached
+    _state["ts"] = time.time()
+    _state["status"] = "ready"
 _start(force=False)
 
 
