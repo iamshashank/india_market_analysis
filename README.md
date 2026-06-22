@@ -1,3 +1,5 @@
+Access it on https://india-market-analysis.onrender.com/
+
 # India Market Analysis — Event-Aware Stock Screener
 
 A self-contained Python tool that does an **in-depth, rules-based market
