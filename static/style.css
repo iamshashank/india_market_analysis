@@ -495,6 +495,31 @@ body.panel-open .banner {
 .premkt-reasons li { margin-bottom: 2px; }
 .premkt-disclaimer { margin-top: 14px; font-size: 12px; padding: 10px 12px; border-radius: 8px;
   background: rgba(232, 93, 93, 0.12); border: 1px solid rgba(232, 93, 93, 0.35); color: #f0b0b0; }
+/* compact "at a glance" summary */
+.gist-title { margin-bottom: 10px; }
+.gist-sub { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 6px; }
+.gist-card { display: flex; flex-direction: column; gap: 12px; }
+.gist-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 12px; }
+.gist-stocks-row { align-items: center; }
+.gist-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); min-width: 130px; }
+.gist-bias { font-size: 14px; font-weight: 700; }
+.gist-bias.pos { color: var(--green); }
+.gist-bias.neg { color: var(--red, #e85d5d); }
+.gist-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.gist-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 600; text-decoration: none; color: var(--text, #e6e9f2);
+  background: var(--bg-soft); border: 1px solid var(--border); transition: border-color .15s, background .15s; }
+.gist-chip b { font-weight: 800; }
+.gist-chip.gist-strong { background: rgba(63,185,124,0.16); border-color: rgba(63,185,124,0.5); }
+.gist-chip.gist-strong b { color: #6fd7a5; }
+.gist-chip.gist-lean { background: rgba(91,141,239,0.14); border-color: rgba(91,141,239,0.45); }
+.gist-chip.gist-lean b { color: #7eb0ff; }
+.gist-chip:hover { border-color: var(--accent, #7eb0ff); }
+.gist-gold { font-size: 14px; font-weight: 700; }
+.gist-gold.pos { color: var(--green); }
+.gist-gold.neg { color: var(--red, #e85d5d); }
+.gist-hint { font-size: 11.5px; margin-top: 8px; }
+
 /* confidence buckets + risk plan + backtest */
 .bucket-title { font-size: 14px; margin: 18px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--border); }
 .bucket-title.pos { color: var(--green); }

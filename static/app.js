@@ -98,11 +98,57 @@ function render(pm) {
 
   const c = $("#content");
   c.innerHTML = "";
+  c.appendChild(gistSection(pm));
   c.appendChild(biasSection(pm));
   c.appendChild(predictionSection(pm));
   if (pm.gold_etf) c.appendChild(goldSection(pm.gold_etf));
   if (pm.validation) c.appendChild(validationSection(pm.validation));
   if (pm.sources) c.appendChild(sourcesSection(pm.sources));
+}
+
+// ---------- compact summary (top of page) ----------
+function gistSection(pm) {
+  const s = el("section", "section gist-section");
+  const picks = [...(pm.high_confidence || []), ...(pm.watchlist || [])]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8);
+
+  const chips = picks.map((it) => {
+    const sc = Math.round(Number(it.score));
+    const cls = it.score >= 62 ? "gist-strong" : "gist-lean";
+    return `<a class="gist-chip ${cls}" href="https://finance.yahoo.com/quote/${encodeURIComponent(it.ticker)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(it.verdict || "")} · target +${fmtNum(it.target_pct, 1)}% · stop −${fmtNum(it.stop_pct, 1)}%">
+      ${escapeHtml(it.name || it.ticker)} <b>${sc}</b>
+    </a>`;
+  }).join("");
+
+  const g = pm.gold_etf || {};
+  const impl = g.implied_move_pct;
+  const goldCls = impl == null ? "" : impl > 0.3 ? "pos" : impl < -0.3 ? "neg" : "";
+  const goldRange = (g.range_low_pct != null && g.range_high_pct != null)
+    ? `${fmtPct(g.range_low_pct)} to ${fmtPct(g.range_high_pct)}`
+    : (impl != null ? fmtPct(impl) : "n/a");
+
+  const b = pm.market_bias || {};
+  const biasCls = b.score >= 60 ? "pos" : b.score <= 40 ? "neg" : "";
+
+  s.innerHTML = `
+    <h2 class="gist-title">At a glance <span class="gist-sub">tomorrow's open</span></h2>
+    <div class="card gist-card">
+      <div class="gist-row">
+        <span class="gist-lbl">Market bias</span>
+        <span class="gist-bias ${biasCls}">${fmtNum(b.score)}/100 · ${escapeHtml(b.label || "")}</span>
+      </div>
+      <div class="gist-row gist-stocks-row">
+        <span class="gist-lbl">Likely to open higher</span>
+        <div class="gist-chips">${chips || '<span class="muted">No clear up-bias names today</span>'}</div>
+      </div>
+      <div class="gist-row">
+        <span class="gist-lbl">Gold ETFs</span>
+        <span class="gist-gold ${goldCls}">${escapeHtml(g.direction || "n/a")}${impl != null ? ` · ${goldRange}` : ""}</span>
+      </div>
+    </div>
+    <p class="muted gist-hint">Full details below ↓</p>`;
+  return s;
 }
 
 // ---------- market bias + cue strip ----------
