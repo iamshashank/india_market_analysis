@@ -7,11 +7,12 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      - key: PICKS
-        value: "8"
-      - key: TOP_SECTORS
-        value: "3"
-      - key: PER_SECTOR
-        value: "6"
-      - key: INCLUDE_NEWS
-        value: "1"
+      # Postgres connection string for JSON persistence (set in dashboard).
+      - key: MASTER_DB
+        sync: false
+      - key: PREMARKET_TTL_MIN
+        value: "15"
+
+# Pre-open refresh is handled by an external pinger (GitHub Actions:
+# .github/workflows/premarket-refresh.yml) which POSTs /api/refresh before
+# the NSE open — no paid Render cron service required.
