@@ -508,6 +508,19 @@ body.panel-open .banner {
 @media (max-width: 560px) { .risk-plan { grid-template-columns: repeat(2, 1fr); } }
 .rp-cell { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; display: flex; flex-direction: column; gap: 2px; }
 .rp-cell span { font-size: 10px; text-transform: uppercase; letter-spacing: .3px; color: var(--muted); }
+.rp-cell .tip { cursor: help; position: relative; outline: none; }
+.rp-cell .tip:hover, .rp-cell .tip:focus { color: var(--accent, #7eb0ff); }
+.rp-cell .tip::after {
+  content: attr(data-tip);
+  position: absolute; left: 0; bottom: 130%; z-index: 50;
+  width: max-content; max-width: 240px;
+  background: #11151f; color: #e6e9f2; border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 11.5px; line-height: 1.4;
+  text-transform: none; letter-spacing: normal; font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,.45);
+  opacity: 0; visibility: hidden; transition: opacity .12s; pointer-events: none;
+}
+.rp-cell .tip:hover::after, .rp-cell .tip:focus::after { opacity: 1; visibility: visible; }
 .rp-cell b { font-size: 12.5px; }
 .bt-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 12px 0; }
 .bt-card { background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 3px; }

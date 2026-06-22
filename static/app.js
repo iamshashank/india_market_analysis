@@ -141,12 +141,19 @@ function stockCard(it, rank) {
   const adv = it.adv_cr != null ? `₹${fmtNum(it.adv_cr, 0)} cr/day` : "liquidity n/a";
   const atr = it.atr_pct != null ? `${fmtNum(it.atr_pct, 1)}% ATR` : "";
 
+  const TIP = {
+    entry: "Entry: the price to buy at (≈ expected open). Your reference/start point for the trade.",
+    stop: "Stop-loss: exit here if you're wrong, to cap the loss. Sized to this stock's volatility (ATR). The most important number for survival.",
+    target: "Target: take-profit price. Book the gain here instead of getting greedy.",
+    rr: "Risk:Reward — potential gain vs potential loss. 1:1.5 means risking ₹1 to make ₹1.5, so you can profit even when right less than half the time.",
+  };
+  const tipAttr = (t) => `tabindex="0" data-tip="${escapeHtml(t)}" title="${escapeHtml(t)}"`;
   const risk = `
     <div class="risk-plan">
-      <div class="rp-cell"><span>Entry</span><b>₹${fmtNum(it.price, 2)}</b></div>
-      <div class="rp-cell"><span>Stop</span><b class="neg">₹${fmtNum(it.stop_price, 2)} (−${fmtNum(it.stop_pct, 1)}%)</b></div>
-      <div class="rp-cell"><span>Target</span><b class="pos">₹${fmtNum(it.target_price, 2)} (+${fmtNum(it.target_pct, 1)}%)</b></div>
-      <div class="rp-cell"><span>R:R</span><b>1 : ${fmtNum(it.rr, 1)}</b></div>
+      <div class="rp-cell"><span class="tip" ${tipAttr(TIP.entry)}>Entry ⓘ</span><b>₹${fmtNum(it.price, 2)}</b></div>
+      <div class="rp-cell"><span class="tip" ${tipAttr(TIP.stop)}>Stop ⓘ</span><b class="neg">₹${fmtNum(it.stop_price, 2)} (−${fmtNum(it.stop_pct, 1)}%)</b></div>
+      <div class="rp-cell"><span class="tip" ${tipAttr(TIP.target)}>Target ⓘ</span><b class="pos">₹${fmtNum(it.target_price, 2)} (+${fmtNum(it.target_pct, 1)}%)</b></div>
+      <div class="rp-cell"><span class="tip" ${tipAttr(TIP.rr)}>R:R ⓘ</span><b>1 : ${fmtNum(it.rr, 1)}</b></div>
     </div>`;
 
   const item = el("div", "premkt-item");
