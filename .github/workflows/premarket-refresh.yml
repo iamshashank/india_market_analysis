@@ -1,0 +1,42 @@
+name: Pre-open refresh
+
+# External pinger: triggers the live app's /api/refresh before NSE opens.
+#
+# NSE opens 09:15 IST. GitHub-scheduled jobs can be delayed several minutes
+# under load, so this is scheduled at 03:10 UTC (08:40 IST, ~35 min before) to
+# absorb that delay and still finish well before the open. Adjust if needed.
+#
+# Requires one repo secret:  APP_URL  e.g. https://india-market-analysis.onrender.com
+# (Settings -> Secrets and variables -> Actions -> New repository secret)
+
+on:
+  schedule:
+    - cron: "10 3 * * 1-5"   # 03:10 UTC = 08:40 IST, Monday-Friday
+  workflow_dispatch: {}        # allows manual "Run workflow" from the Actions tab
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger refresh and wait for completion
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${APP_URL:-}" ]; then
+            echo "APP_URL secret is not set"; exit 1
+          fi
+          echo "Triggering refresh on $APP_URL/api/refresh"
+          curl -fsS -X POST "$APP_URL/api/refresh" || true
+          echo
+
+          # The build runs async on the server; poll until it's ready (~max 4 min).
+          for i in $(seq 1 30); do
+            sleep 8
+            status=$(curl -fsS "$APP_URL/api/premarket" \
+              | python3 -c "import sys,json;print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "status: $status"
+            if [ "$status" = "ready" ]; then echo "Refresh complete."; exit 0; fi
+            if [ "$status" = "error" ]; then echo "Server reported a build error."; exit 1; fi
+          done
+          echo "Timed out waiting for build to finish."; exit 1
