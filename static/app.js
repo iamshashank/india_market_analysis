@@ -93,7 +93,10 @@ async function refresh() {
 // ---------- render ----------
 function render(pm) {
   hideBanner();
-  $("#generated").textContent = pm.as_of ? "As of " + pm.as_of : "";
+  const predictFor = pm.predict_for_label
+    ? `Prediction for ${pm.predict_for_label}` + (pm.as_of ? ` · as of ${pm.as_of}` : "")
+    : (pm.as_of ? "As of " + pm.as_of : "");
+  $("#generated").textContent = predictFor;
   $("#disclaimer").textContent = pm.disclaimer || "";
 
   const c = $("#content");
@@ -131,8 +134,9 @@ function gistSection(pm) {
   const b = pm.market_bias || {};
   const biasCls = b.score >= 60 ? "pos" : b.score <= 40 ? "neg" : "";
 
+  const openLabel = pm.predict_for_label ? `${pm.predict_for_label} open` : "next open";
   s.innerHTML = `
-    <h2 class="gist-title">At a glance <span class="gist-sub">tomorrow's open</span></h2>
+    <h2 class="gist-title">At a glance <span class="gist-sub">${escapeHtml(openLabel)}</span></h2>
     <div class="card gist-card">
       <div class="gist-row">
         <span class="gist-lbl">Market bias</span>
