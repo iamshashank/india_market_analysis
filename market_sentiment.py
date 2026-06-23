@@ -19,6 +19,7 @@ is a transparent rules engine that estimates ODDS, for education only.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import time
@@ -474,6 +475,24 @@ def _sources() -> dict:
 _MIN_ADV_CR = float(os.environ.get("MIN_ADV_CR", 25))  # liquidity floor for intraday
 
 
+def _next_trading_day(now: Optional[_dt.datetime] = None) -> _dt.date:
+    """The next NSE session this prediction targets.
+
+    NSE trades Mon-Fri and closes at 15:30 IST. Once today's session is over
+    (or it's the weekend) the prediction is for the next weekday; otherwise it
+    targets today's upcoming open. Holidays aren't modelled — weekends only.
+    """
+    now = now or _dt.datetime.now()
+    d = now.date()
+    # After the session closes, roll to the next calendar day.
+    if now.hour > 15 or (now.hour == 15 and now.minute >= 30):
+        d = d + _dt.timedelta(days=1)
+    # Skip Saturday (5) and Sunday (6).
+    while d.weekday() >= 5:
+        d = d + _dt.timedelta(days=1)
+    return d
+
+
 def build_premarket(force: bool = False) -> dict:
     """Build the next-day open prediction: stocks most likely to open higher."""
     cues = global_cues(force=force)
@@ -509,8 +528,11 @@ def build_premarket(force: bool = False) -> dict:
         cue_card("usdinr"), cue_card("vix_india"),
     ) if c]
 
+    predict_for = _next_trading_day()
     return {
         "as_of": time.strftime("%Y-%m-%d %H:%M IST", time.localtime()),
+        "predict_for": predict_for.strftime("%Y-%m-%d"),
+        "predict_for_label": predict_for.strftime("%a, %d %b %Y"),
         "market_bias": bias,
         "cue_strip": cue_strip,
         "gift_nifty_note": (
