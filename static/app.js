@@ -9,6 +9,8 @@ const el = (tag, cls, html) => {
 };
 
 let POLL = null;
+let PAPER_CHART = null;
+let PAPER_DATA = null;
 
 const fmtNum = (x, nd = 1) => (x === null || x === undefined ? "n/a" : Number(x).toFixed(nd));
 const signClass = (x) => (x === null || x === undefined ? "" : x >= 0 ? "pos" : "neg");
@@ -53,6 +55,7 @@ async function load() {
     }
     if (j.data) {
       render(j.data);
+      loadPaperDashboard();
       if (j.status === "running") {
         showBanner("Updating with the latest cues…");
         ensurePolling();
@@ -153,6 +156,277 @@ function gistSection(pm) {
     </div>
     <p class="muted gist-hint">Full details below ↓</p>`;
   return s;
+}
+
+// ---------- paper trading (simulated) ----------
+function initPaperTrading() {
+  wirePaperEvents();
+  loadPaperDashboard();
+}
+
+function wirePaperEvents() {
+  const saveBtn = $("#paperSaveBtn");
+  const runBtn = $("#paperRunBtn");
+  const settleBtn = $("#paperSettleBtn");
+  if (!saveBtn || saveBtn.dataset.wired) return;
+  saveBtn.dataset.wired = "1";
+  saveBtn.addEventListener("click", savePaperSettings);
+  runBtn.addEventListener("click", () => runPaperSession(false));
+  settleBtn.addEventListener("click", settlePaperTrades);
+}
+
+function paperMsg(text, kind) {
+  const m = $("#paperMsg");
+  if (!m) return;
+  m.textContent = text || "";
+  m.className = "paper-msg" + (kind ? " " + kind : "");
+}
+
+function readPaperSettingsForm() {
+  return {
+    budget_inr: Number($("#paperBudget")?.value || 10000),
+    min_score: Number($("#paperMinScore")?.value || 54),
+    min_market_bias: Number($("#paperMinBias")?.value || 50),
+    max_stocks: Number($("#paperMaxStocks")?.value || 3),
+  };
+}
+
+function fillPaperSettingsForm(s) {
+  if (!s) return;
+  const map = [
+    ["paperBudget", "budget_inr"],
+    ["paperMinScore", "min_score"],
+    ["paperMinBias", "min_market_bias"],
+    ["paperMaxStocks", "max_stocks"],
+  ];
+  map.forEach(([id, key]) => {
+    const inp = document.getElementById(id);
+    if (inp && s[key] != null) inp.value = s[key];
+  });
+}
+
+async function savePaperSettings() {
+  paperMsg("Saving…");
+  try {
+    const body = readPaperSettingsForm();
+    const j = await fetch("/api/paper/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }).then((r) => r.json());
+    fillPaperSettingsForm(j.settings);
+    paperMsg("Settings saved.", "ok");
+  } catch (e) {
+    paperMsg("Could not save settings.", "err");
+  }
+}
+
+async function runPaperSession(force) {
+  paperMsg(force ? "Re-running session…" : "Creating paper session…");
+  try {
+    const j = await fetch("/api/paper/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ force: !!force }),
+    }).then((r) => r.json());
+    if (!j.ok) {
+      paperMsg(j.error || "Run failed.", "err");
+      return;
+    }
+    if (j.skipped) {
+      paperMsg(j.message || j.reason || "Session skipped for today.", "ok");
+    } else {
+      paperMsg(`Logged ${(j.trades || []).length} paper trade(s) for ${j.trade_date}.`, "ok");
+    }
+    loadPaperDashboard();
+  } catch (e) {
+    paperMsg("Run failed — server unreachable.", "err");
+  }
+}
+
+async function settlePaperTrades() {
+  paperMsg("Settling past trades against Yahoo OHLC…");
+  try {
+    const j = await fetch("/api/paper/settle", { method: "POST" }).then((r) => r.json());
+    paperMsg(`Settled ${j.settled || 0} trade(s).`, "ok");
+    loadPaperDashboard();
+  } catch (e) {
+    paperMsg("Settle failed.", "err");
+  }
+}
+
+async function loadPaperDashboard() {
+  try {
+    const j = await fetch("/api/paper/dashboard").then((r) => r.json());
+    PAPER_DATA = j;
+    fillPaperSettingsForm(j.settings);
+    renderPaperPerformance(j.stats);
+    renderPaperTradesTable(j.trades, j.skips);
+  } catch (e) {
+    const card = $("#paperPerfCard");
+    if (card) card.innerHTML = `<p class="muted">Could not load paper dashboard.</p>`;
+  }
+}
+
+function renderPaperPerformance(stats) {
+  const card = $("#paperPerfCard");
+  if (!card || !stats) return;
+
+  const pnlCls = stats.total_pnl_inr >= 0 ? "pos" : "neg";
+  const wr = stats.win_rate != null ? `${fmtNum(stats.win_rate, 1)}%` : "n/a";
+
+  card.innerHTML = `
+    <h3 style="margin:0 0 12px;font-size:14px">Performance</h3>
+    <div class="paper-stats">
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">Total P&amp;L</div>
+        <div class="paper-stat-val ${pnlCls}">${stats.total_pnl_inr >= 0 ? "+" : ""}₹${fmtNum(stats.total_pnl_inr, 0)}</div>
+      </div>
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">Win rate</div>
+        <div class="paper-stat-val">${wr}</div>
+      </div>
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">Settled</div>
+        <div class="paper-stat-val">${stats.settled || 0}</div>
+      </div>
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">Pending</div>
+        <div class="paper-stat-val">${stats.pending || 0}</div>
+      </div>
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">W / L</div>
+        <div class="paper-stat-val">${stats.wins || 0} / ${stats.losses || 0}</div>
+      </div>
+      <div class="paper-stat">
+        <div class="paper-stat-lbl">Avg / trade</div>
+        <div class="paper-stat-val">${stats.avg_pnl_inr != null ? "₹" + fmtNum(stats.avg_pnl_inr, 0) : "n/a"}</div>
+      </div>
+    </div>
+    <div class="paper-chart-wrap"><canvas id="paperPnlChart"></canvas></div>
+    ${exitBreakdownHtml(stats.exit_breakdown)}`;
+
+  renderPaperChart(stats.cumulative || []);
+}
+
+function exitBreakdownHtml(bd) {
+  if (!bd || !Object.keys(bd).length) return "";
+  const chips = Object.entries(bd).map(([k, n]) =>
+    `<span class="conf-badge conf-med">${escapeHtml(k)}: ${n}</span>`
+  ).join(" ");
+  return `<p class="muted" style="margin:8px 0 0;font-size:11.5px">Exit reasons: ${chips}</p>`;
+}
+
+function renderPaperChart(cumulative) {
+  const canvas = document.getElementById("paperPnlChart");
+  if (!canvas || typeof Chart === "undefined") return;
+
+  if (PAPER_CHART) {
+    PAPER_CHART.destroy();
+    PAPER_CHART = null;
+  }
+
+  if (!cumulative.length) {
+    const wrap = canvas.parentElement;
+    if (wrap) wrap.innerHTML = `<p class="muted" style="padding:40px 0;text-align:center">No settled trades yet — cumulative P&amp;L will appear here.</p>`;
+    return;
+  }
+
+  const labels = cumulative.map((d) => d.date);
+  const values = cumulative.map((d) => d.cumulative_pnl);
+  const daily = cumulative.map((d) => d.daily_pnl);
+
+  PAPER_CHART = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Cumulative P&L (₹)",
+          data: values,
+          borderColor: "#5b8cff",
+          backgroundColor: "rgba(91,140,255,0.12)",
+          fill: true,
+          tension: 0.25,
+          pointRadius: 4,
+          yAxisID: "y",
+        },
+        {
+          label: "Daily P&L (₹)",
+          data: daily,
+          type: "bar",
+          backgroundColor: daily.map((v) => (v >= 0 ? "rgba(47,191,113,0.55)" : "rgba(239,93,108,0.55)")),
+          yAxisID: "y",
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: "index", intersect: false },
+      plugins: {
+        legend: { labels: { color: "#93a0c0", boxWidth: 12 } },
+      },
+      scales: {
+        x: { ticks: { color: "#93a0c0", maxRotation: 45 }, grid: { color: "rgba(42,51,82,0.5)" } },
+        y: {
+          ticks: { color: "#93a0c0", callback: (v) => "₹" + v },
+          grid: { color: "rgba(42,51,82,0.5)" },
+        },
+      },
+    },
+  });
+}
+
+function statusPill(status) {
+  const st = (status || "pending").toLowerCase();
+  return `<span class="status-pill status-${escapeHtml(st)}">${escapeHtml(st)}</span>`;
+}
+
+function renderPaperTradesTable(trades, skips) {
+  const wrap = $("#paperTradesTable");
+  if (!wrap) return;
+
+  const rows = trades || [];
+  if (!rows.length && !(skips || []).length) {
+    wrap.innerHTML = `<p class="muted">No paper trades logged yet. Save settings and click <b>Run today</b>, or wait for the next prediction refresh.</p>`;
+    return;
+  }
+
+  let html = `<div class="table-wrap"><table class="paper-trades-table"><thead><tr>
+    <th class="l">Date</th><th class="l">Stock</th><th>Score</th><th>Qty</th>
+    <th>Entry</th><th>Exit</th><th>P&amp;L</th><th>Exit</th><th>Status</th>
+  </tr></thead><tbody>`;
+
+  rows.forEach((t) => {
+    const pnl = t.pnl_inr;
+    const pnlCls = pnl == null ? "" : pnl >= 0 ? "pos" : "neg";
+    const entry = t.entry_price ?? t.signal_entry_price;
+    const exit = t.exit_price;
+    html += `<tr>
+      <td class="l">${escapeHtml(t.trade_date)}</td>
+      <td class="l">${yahooLink(t.ticker, escapeHtml(t.name || t.ticker))}</td>
+      <td>${fmtNum(t.stock_score, 0)}</td>
+      <td>${t.qty}</td>
+      <td>${entry != null ? "₹" + fmtNum(entry, 2) : "—"}</td>
+      <td>${exit != null ? "₹" + fmtNum(exit, 2) : "—"}</td>
+      <td class="${pnlCls}">${pnl != null ? (pnl >= 0 ? "+" : "") + "₹" + fmtNum(pnl, 0) : "—"}</td>
+      <td>${escapeHtml(t.exit_reason || "—")}</td>
+      <td>${statusPill(t.status)}</td>
+    </tr>`;
+  });
+
+  (skips || []).forEach((s) => {
+    html += `<tr>
+      <td class="l">${escapeHtml(String(s.trade_date).slice(0, 10))}</td>
+      <td class="l" colspan="6"><span class="muted">${escapeHtml(s.reason)}</span></td>
+      <td>—</td>
+      <td>${statusPill("skipped")}</td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+  wrap.innerHTML = html;
 }
 
 // ---------- market bias + cue strip ----------
@@ -391,4 +665,5 @@ function sourcesSection(src) {
 
 // ---------- boot ----------
 $("#refreshBtn").addEventListener("click", refresh);
+initPaperTrading();
 load();
