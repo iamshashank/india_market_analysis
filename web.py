@@ -24,6 +24,8 @@ from flask import Flask, jsonify, render_template, request
 
 from market_sentiment import build_premarket
 import db
+import paper_db
+import paper_trading
 
 app = Flask(__name__)
 
@@ -43,6 +45,10 @@ def _compute(force: bool):
         _state["error"] = None
         # Persist the whole payload as JSON under a single key.
         db.save(data)
+        try:
+            paper_trading.create_session(data)
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
     except Exception as e:  # noqa: BLE001
         _state["error"] = str(e)
         _state["status"] = "error"
@@ -90,8 +96,55 @@ def healthz():
     return jsonify({"ok": True, "status": _state["status"]})
 
 
+# ---------- paper trading (simulated, no real orders) ----------
+
+@app.route("/api/paper/settings", methods=["GET"])
+def api_paper_settings_get():
+    return jsonify({"settings": paper_trading.get_settings(), "defaults": paper_trading.DEFAULT_SETTINGS})
+
+
+@app.route("/api/paper/settings", methods=["POST"])
+def api_paper_settings_post():
+    body = request.get_json(silent=True) or {}
+    saved = paper_trading.save_settings(body)
+    return jsonify({"ok": True, "settings": saved})
+
+
+@app.route("/api/paper/run", methods=["POST"])
+def api_paper_run():
+    body = request.get_json(silent=True) or {}
+    force = bool(body.get("force"))
+    pm = _state.get("data")
+    if not pm:
+        return jsonify({"ok": False, "error": "No premarket data yet — wait for build or refresh."}), 400
+    result = paper_trading.create_session(pm, force=force)
+    return jsonify(result)
+
+
+@app.route("/api/paper/settle", methods=["POST"])
+def api_paper_settle():
+    result = paper_trading.settle_pending()
+    return jsonify({"ok": True, **result})
+
+
+@app.route("/api/paper/dashboard")
+def api_paper_dashboard():
+    paper_trading.settle_pending()
+    trades = paper_db.list_trades(limit=500)
+    skips = paper_db.list_skips(limit=30)
+    stats = paper_trading.compute_stats(trades)
+    settings = paper_trading.get_settings()
+    return jsonify({
+        "settings": settings,
+        "stats": stats,
+        "trades": trades,
+        "skips": skips,
+    })
+
+
 # Warm from Postgres first (instant + survives restarts), then refresh live.
 db.init_db()
+paper_db.init_paper_db()
 _cached = db.load()
 if _cached:
     _state["data"] = _cached
