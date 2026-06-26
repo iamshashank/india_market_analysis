@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
 </head>
 <body>
   <header class="topbar">
@@ -25,6 +26,51 @@
 
   <div id="banner" class="banner hidden"></div>
 
+  <div class="content paper-always">
+    <section class="section paper-section" id="paperRoot">
+      <div class="paper-head">
+        <h2>Paper trading lab</h2>
+        <span class="paper-badge">Simulated · no real orders</span>
+      </div>
+      <div class="paper-grid">
+        <div class="card paper-settings" id="paperSettingsCard">
+          <p class="muted" style="margin:0 0 8px">Configure budget &amp; filters. Trades auto-log when predictions refresh.</p>
+          <div class="paper-field">
+            <label for="paperBudget">Total budget (₹)</label>
+            <input type="number" id="paperBudget" min="1000" step="500" value="10000" />
+          </div>
+          <div class="paper-field">
+            <label for="paperMinScore">Min stock score</label>
+            <input type="number" id="paperMinScore" min="50" max="100" step="1" value="54" />
+            <div class="hint">Only pick names scoring at or above this (higher = stricter)</div>
+          </div>
+          <div class="paper-field">
+            <label for="paperMinBias">Min market bias (day confidence)</label>
+            <input type="number" id="paperMinBias" min="0" max="100" step="1" value="50" />
+            <div class="hint">Skip the day if overall market bias is below this</div>
+          </div>
+          <div class="paper-field">
+            <label for="paperMaxStocks">Max stocks per day</label>
+            <input type="number" id="paperMaxStocks" min="1" max="10" step="1" value="3" />
+          </div>
+          <div class="paper-actions">
+            <button type="button" class="btn" id="paperSaveBtn">Save settings</button>
+            <button type="button" class="btn btn-secondary" id="paperRunBtn">Run today</button>
+            <button type="button" class="btn btn-secondary" id="paperSettleBtn">Settle past</button>
+          </div>
+          <p class="paper-msg" id="paperMsg"></p>
+        </div>
+        <div class="card" id="paperPerfCard">
+          <p class="muted" style="margin:0">Loading paper performance…</p>
+        </div>
+      </div>
+      <div class="card" id="paperTradesCard" style="margin-top:14px">
+        <h3 style="margin:0 0 10px;font-size:14px">Trade log</h3>
+        <div id="paperTradesTable"><p class="muted">Loading…</p></div>
+      </div>
+    </section>
+  </div>
+
   <main id="content" class="content">
     <div id="loading" class="loading">
       <div class="spinner"></div>
@@ -37,6 +83,6 @@
     <p class="muted">Educational tool — not investment advice. Data via Yahoo Finance. No prediction is guaranteed.</p>
   </footer>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=23"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=24"></script>
 </body>
 </html>
