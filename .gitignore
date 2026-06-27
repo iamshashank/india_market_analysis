@@ -1,0 +1,34 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.log
+
+# ---- Node / frontend build ----
+node_modules/
+frontend/node_modules/
+frontend/dist/
+# built SPA bundle is generated from frontend/ (vite build) — don't track
+backend/static/spa/
+
+# ---- App caches / runtime data ----
+cache/
+backend/cache/
+*.sqlite
+*.db
+
+# ---- Secrets / env ----
+.env
+.env.*
+*.secret
+credentials.json
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/

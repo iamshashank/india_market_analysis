@@ -1,3 +1,12 @@
+# ---- stage 1: build the React SPA into backend/static/spa ----
+FROM node:22-slim AS frontend
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ ./
+RUN npm run build          # vite outDir -> /app/backend/static/spa
+
+# ---- stage 2: python backend ----
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -8,13 +17,16 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY backend/requirements.txt ./backend/requirements.txt
+RUN pip install --no-cache-dir -r backend/requirements.txt
 
-COPY . .
+COPY backend/ ./backend/
+COPY pipelines/ ./pipelines/
+# fresh SPA build from stage 1 (overrides any committed bundle)
+COPY --from=frontend /app/backend/static/spa ./backend/static/spa
 
 EXPOSE 8000
 
-# Single worker (keeps the in-memory cache/background thread coherent) with
-# multiple threads so the UI stays responsive while analysis runs.
-CMD ["sh", "-c", "gunicorn web:app --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads 8 --timeout 300 --graceful-timeout 30"]
+# Run from the backend package (flat module imports); single worker keeps the
+# in-memory cache + background threads coherent, threads keep the UI responsive.
+CMD ["sh", "-c", "gunicorn --chdir backend wsgi:app --bind 0.0.0.0:${PORT:-8000} --worker-class gthread --workers 1 --threads 8 --timeout 300 --graceful-timeout 30"]

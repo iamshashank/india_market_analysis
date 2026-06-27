@@ -7,11 +7,15 @@ services:
     healthCheckPath: /healthz
     autoDeploy: true
     envVars:
-      # Postgres connection string for JSON persistence (set in dashboard).
-      - key: MASTER_DB
+      # SQLAlchemy MySQL URL for JSON persistence, e.g.
+      # mysql+pymysql://user:pass@host:3306/market_intelligence  (set in dashboard).
+      # If unset/unreachable the app falls back to a local JSON cache.
+      - key: MYSQL_URL
         sync: false
       - key: PREMARKET_TTL_MIN
         value: "15"
+      - key: SCREEN_TTL_HOURS
+        value: "12"
 
 # Pre-open refresh is handled by an external pinger (GitHub Actions:
 # .github/workflows/premarket-refresh.yml) which POSTs /api/refresh before

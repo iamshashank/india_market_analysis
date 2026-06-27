@@ -1,190 +1,164 @@
-Access it on https://india-market-analysis.onrender.com/
+# Market Intelligence — Multibagger Finder + Next-Day Predictor
 
-# India Market Analysis — Event-Aware Stock Screener
+A self-contained Python + Flask app with two engines:
 
-A self-contained Python tool that does an **in-depth, rules-based market
-analysis** of liquid Indian (NSE) stocks and surfaces a diversified shortlist
-of 5–6 ideas for a ~6-month horizon.
+1. **Multibagger Finder** *(primary)* — a rules-based screen across **India (NSE)
+   and US** markets that surfaces under-the-radar small-cap compounders and
+   concentrates the best ideas into a high-conviction portfolio.
+2. **Next-Day Predictor** *(kept)* — estimates which liquid NSE stocks are most
+   likely to **open higher tomorrow** from overnight global cues, with a paper-
+   trading lab that tracks how those signals would have performed.
 
-It blends three layers:
+> ⚠️ **EDUCATIONAL / RESEARCH TOOL — NOT INVESTMENT ADVICE.** This is an
+> automated screen of public data (Yahoo Finance, unofficial & delayed).
+> Small-cap and low-coverage stocks are illiquid and high-risk. Do your own
+> research and consult a SEBI/SEC-registered adviser before investing.
 
-1. **Quantitative (bottom-up):** live fundamentals + technicals per stock
-   (P/E, forward P/E, PEG, P/B, ROE, net margin, debt/equity, earnings &
-   revenue growth, 6-month price return, 200-DMA, 52-week-high position).
-2. **Macro / event (top-down):** a configurable macro/event calendar (festive
-   season, capex/Budget cycle, state elections, global rate path, IT demand,
-   commodities, pharma defensiveness) that applies a **sector tilt** to scores.
-3. **AI + government policy (thematic):** a per-sector AI-impact knowledge base
-   plus **live news headlines** (flagged when AI-relevant). The tool ranks the
-   **top 3 sectors** and, for each, prints how AI + policy will drive growth and
-   lists the **top 6 stocks** in that sector.
+## The multibagger strategy
 
-> ⚠️ **EDUCATIONAL / RESEARCH TOOL — NOT INVESTMENT ADVICE.**
-> This is an automated screen. It is not a recommendation to buy or sell any
-> security, and the author is not a SEBI-registered investment adviser. Data
-> from Yahoo Finance can be delayed or wrong. Markets carry risk of loss. Do
-> your own research and/or consult a registered adviser before investing.
+The screen encodes four ideas, plus the supporting fundamentals a real
+compounder needs. Each pillar is a 0-100 score (percentile-ranked within the
+universe where relative); the weighted blend is the composite.
 
-## How the score works
+| Pillar | Weight | What it rewards |
+|--------|:------:|-----------------|
+| **Small base** | 18% | Genuinely small market cap (with a liquidity floor) — room to compound |
+| **Earnings consistency** | 20% | Steady / rising quarterly earnings, low volatility, few loss quarters |
+| **Limited coverage** | 15% | Few analysts + little news + lower institutional ownership = overlooked |
+| **Growth** | 15% | Revenue & earnings growth runway |
+| **Quality** | 14% | ROE, margins, free cash flow, low debt |
+| **Valuation** | 8% | Not paying an absurd price (PEG, P/B) |
+| **News catalyst** | 10% | Recent events (orders, approvals, expansion…) scored by a finance lexicon |
 
-Each stock gets a **0–100 composite** built from five pillars, each normalised
-by **percentile rank within the universe** (robust to outliers/units):
+**Concentration (high conviction):** `build_portfolio` takes the top names above
+`MIN_SCORE`, applies a per-sector cap, and tilts weights toward the best ideas
+(weight ∝ score², clipped to a sane band). Each pick gets a conviction tier,
+suggested weight, position-size tier, a thesis, key risks and recent headlines.
 
-| Pillar      | Weight | Inputs (direction)                                             |
-|-------------|:------:|----------------------------------------------------------------|
-| Valuation   | 22%    | trailing P/E ↓, PEG ↓, P/B ↓                                   |
-| Quality     | 22%    | ROE ↑, net margin ↑, debt/equity ↓                             |
-| Growth      | 18%    | earnings growth ↑, revenue growth ↑                            |
-| Momentum    | 13%    | 6-month return ↑, distance above 200-DMA ↑                     |
-| Event tilt  | 13%    | sector tailwind/headwind from the macro calendar               |
-| AI tilt     | 12%    | per-sector AI exposure from `ai_impact.py`                     |
+All thresholds live in `config.py`, so the output is explainable and
+reproducible.
 
-Final picks are chosen top-down by score with a **per-sector cap** (default 2)
-for diversification.
+## Repository layout
 
-### AI-driven sector deep-dive
+```
+backend/      Flask app + all Python modules (flat imports) + static/ + templates/
+frontend/     React + Vite SPA (builds into ../backend/static/spa)
+pipelines/    Scheduled data-accumulation jobs
+  nightly/    scan.py — broad-market multibagger scan → MySQL
+  preopen/    cron_refresh.py — refresh the next-day predictor (~08:40 IST)
+  weekly/     (planned)
+Dockerfile · Procfile · render.yaml   deploy config
+```
 
-After the overall picks, the tool ranks sectors (bottom-up quality of names
-blended with each sector's AI tilt), selects the **top 3**, and for each prints:
+The backend modules import each other by flat name, so the app runs **from the
+`backend/` directory** (`gunicorn --chdir backend web:app`). Pipeline scripts add
+`backend/` to `sys.path` via a 2-line bootstrap, so they reuse the same code.
 
-- an **AI impact / news thesis** (opportunity *and* risk),
-- a **growth outlook**,
-- the **government-policy backdrop** (IndiaAI Mission, Semiconductor Mission,
-  RBI FREE-AI, PLI schemes, DPDP Act, FAME/EV, power-transition targets, ...),
-- the **top stocks** in the sector with valuation/quality metrics,
-- **recent live headlines** per stock (AI-relevant ones flagged `[AI]`), and
-- an **expert analyst note** per stock (see below).
+## Frontend (React SPA)
 
-### Expert analyst overlay (`analyst.py`)
+The UI is a **React + Vite single-page app** in `frontend/`, built to
+`backend/static/spa/` and served by Flask. Five tabs + a searchable **glossary drawer**:
 
-A transparent rules engine converts each stock's scores + metrics into a
-broker-style note:
+| Tab | What it shows |
+|-----|---------------|
+| 🚀 Multibagger Finder | Concentrated portfolio + full ranked shortlist (with a candlestick badge per name) |
+| 🔥 Themes | Theme & sentiment heatmap (AI/deep-tech, semis, renewables, EV, defense…) |
+| 📊 Options / F&O | Put/call ratio, max-pain, ATM IV, support/resistance — US (yfinance) + India (NSE best-effort) |
+| 🔔 Next-Day Predictor | Overnight-cue open prediction (unchanged) |
+| 🧪 Paper Trading | Simulated tracking of the next-day signals |
 
-- **Call / role** — Contrarian value, Value, Growth, Quality compounder
-  (premium), Momentum/Tactical, or Core/balanced.
-- **Conviction** — High / Medium / Speculative (downgraded when risk is high).
-- **Position-size tier** — Core / Half / Starter, by conviction × risk.
-- **Risk management** — a **stop-loss %** (tighter for high-beta/expensive
-  names, wider for low-beta value) with the implied stop **price**, plus a
-  trim/review level.
-- **Thesis & key risks** — assembled from the actual numbers.
-- **Entry plan** — staggered-tranche guidance tailored to the role.
-- **Macro flags** — e.g. crude/Hormuz sensitivity inferred from the company's
-  *industry* (upstream benefits vs oil-marketing margin squeeze), rate
-  sensitivity for leveraged utilities, USD/INR for IT, dividend cushion,
-  governance/headline risk.
+```bash
+cd frontend && npm install
+npm run dev      # Vite dev server :5173, proxies /api + /static to Flask :8000
+npm run build    # outputs to ../backend/static/spa (what Flask serves in production)
+```
 
-Every output is derived from stated thresholds, so it is explainable and
-reproducible. It is **not** investment advice.
+The 📖 **Glossary** button opens a slide-out drawer with plain-English
+definitions for every metric, acronym and candlestick pattern.
+
+## Architecture (`backend/`)
+
+| File | Purpose |
+|------|---------|
+| `config.py` | All tunable weights / bands / env config |
+| `universe.py` · `universe_extended.py` | Curated + extended India/US small-cap universe |
+| `fundamentals.py` | yfinance fetch: ratios, quarterly earnings series, analyst count, FCF; plus `fetch_full` (all ratios + income/balance/cashflow + health scores) |
+| `quality_scores.py` | Piotroski F, Altman Z, Beneish M, Graham number, Magic Formula |
+| `earnings_quality.py` | Earnings-consistency score (CV + trend + profitability) |
+| `news.py` | Multi-source headlines (Google News: Moneycontrol/ET/Mint/BS + Yahoo) + sentiment/event tagging |
+| `candles.py` | Candlestick pattern detection from OHLC (no TA-Lib) |
+| `themes.py` | Theme & sentiment heatmap |
+| `options.py` | Options/F&O analytics (US via yfinance, India via NSE best-effort) |
+| `multibagger.py` | Composite scoring + conviction + concentrated portfolio |
+| `screener.py` | Orchestrates fetch → news → candles → score → portfolio → themes → industry P/E → payload |
+| `store.py` | **MySQL** persistence (SQLAlchemy + PyMySQL), graceful local-JSON fallback |
+| `web.py` | Flask app: serves the SPA + screen/predictor/options/fundamentals/paper APIs |
+| `market_sentiment.py`, `metrics.py`, `backtest.py`, `stock_universe.py` | Next-day predictor engine |
+| `paper_trading.py`, `paper_db.py` | Paper-trading simulator + storage |
 
 ## Setup
 
 ```bash
-cd india_market_analysis
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 ```
 
-## Web app (browser UI)
+### MySQL
 
-A Flask app serves a simple, responsive dashboard. Because a full run pulls
-live data + news (~30–60s), the analysis runs in a **background thread** and the
-browser polls until it's ready; the result is cached in memory and on disk
-(`cache/latest.json`) for warm restarts. A **Refresh** button forces a new run.
-
-Run locally:
+Persistence uses a single JSON key/value table (`app_store`). Point the app at
+your MySQL via a SQLAlchemy URL:
 
 ```bash
-# dev server
-./.venv/bin/python web.py                      # http://localhost:8000
+export MYSQL_URL="mysql+pymysql://root@127.0.0.1:3306/market_intelligence"
+mysql -uroot -e "CREATE DATABASE IF NOT EXISTS market_intelligence CHARACTER SET utf8mb4;"
+```
+
+If `MYSQL_URL` is unset or the DB is unreachable, the app degrades gracefully to
+a local JSON cache (`cache/store.json`) — local dev needs no database.
+
+## Run
+
+```bash
+# dev
+(cd backend && ../.venv/bin/python web.py)     # http://localhost:8000
 
 # production-style (what the container runs)
-./.venv/bin/gunicorn web:app --bind 0.0.0.0:8000 \
+./.venv/bin/gunicorn --chdir backend web:app --bind 0.0.0.0:8000 \
     --worker-class gthread --workers 1 --threads 8 --timeout 300
 ```
 
-Endpoints: `/` (UI), `/api/report`, `POST /api/refresh`, `/api/status`,
-`/healthz`. Tunable via env vars: `PICKS`, `TOP_SECTORS`, `PER_SECTOR`,
-`INCLUDE_NEWS`, `CACHE_DIR`, `PORT`, `REFRESH_INTERVAL_HOURS`.
+Both engines build in a background thread (the screen takes ~30s live) and the
+browser polls until ready; results cache in memory + MySQL for warm restarts.
 
-> Use **1 worker** (the cache + background thread live in-process); scale with
+**Endpoints:** `/` (UI) · `GET /api/screen` · `POST /api/screen/refresh` ·
+`GET /api/premarket` · `POST /api/refresh` · `GET /api/options` ·
+`GET /api/fundamentals` · `/api/paper/*` · `/healthz`.
+
+> Use **1 worker** (the cache + background threads live in-process); scale with
 > threads, not workers.
-
-### Refresh limit & single-job guard
-
-- **Rate limit:** a user **Refresh** is allowed at most **once every
-  `REFRESH_INTERVAL_HOURS` (default 3h)**. The cooldown clock is seeded from the
-  last successful run stored on disk, so restarting the app can't bypass it.
-  The UI disables the button and shows a live "Refresh in `Hh Mm`" countdown;
-  the API returns `{"started": false, "reason": "cooldown", ...}`.
-- **Single job:** if many users click Refresh at once, the check-and-launch is
-  done atomically under a lock, so **only one** background analysis ever runs;
-  the rest get `{"started": false, "reason": "running"}`.
-- The very first load (cold cache) computes immediately and is exempt from the
-  cooldown.
-
-## Deploy (containerised)
-
-The included `Dockerfile` works on any container platform. It binds to `$PORT`
-(set automatically by Render/Railway/Fly/Cloud Run).
-
-**Render.com** — commit the repo and either point Render at the `Dockerfile`
-(Web Service → Docker) or use the included `render.yaml` (Blueprint). Health
-check path is `/healthz`.
-
-```bash
-# build & run locally to test the image
-docker build -t india-market-analysis .
-docker run -p 8000:8000 -e PORT=8000 india-market-analysis
-```
-
-Buildpack platforms (Heroku/Railway) can use the included `Procfile` instead.
-
-## Usage
-
-```bash
-python main.py                      # full live run, 6 diversified picks + AI deep-dive
-python main.py --picks 5            # 5 picks
-python main.py --max-per-sector 1   # stricter diversification
-python main.py --top-sectors 3      # sectors in the AI deep-dive
-python main.py --per-sector 6       # stocks listed per sector
-python main.py --no-news            # skip live headline fetch (faster)
-python main.py --no-analyst         # skip the expert analyst notes
-python main.py --csv scored.csv     # also dump the full ranked table
-python main.py --raw-csv raw.csv    # cache raw fetched metrics
-python main.py --offline raw.csv    # re-score from cached metrics (no network)
-```
 
 ## Customising
 
-- **Universe:** edit `stock_universe.py` (add/remove NSE tickers, `.NS` suffix).
-- **Macro view:** edit `events_calendar.py` — change events, dates and the
-  per-sector `tilt` values to match your own read of the next 6 months.
-- **AI / policy view:** edit `ai_impact.py` — update each sector's `ai_tilt`,
-  thesis, growth outlook, government-policy note and news keywords.
-- **Pillar weights:** edit `WEIGHTS` in `scoring.py`.
+- **Universe:** edit `universe.py` (add NSE `.NS` tickers or US symbols).
+- **Strategy weights & bands:** edit `config.py` (`WEIGHTS`, small-cap band,
+  liquidity floor, portfolio size, per-sector cap, score threshold).
+- **News lexicon:** edit `EVENT_LEXICON` in `news.py` to tune event detection.
 
-## Files
+## Deploy (containerised)
 
-| File                 | Purpose                                            |
-|----------------------|----------------------------------------------------|
-| `main.py`            | CLI + report generation                            |
-| `web.py`             | Flask web app (background compute + cache + API)   |
-| `report.py`          | shared service layer → JSON-serializable report    |
-| `templates/index.html` · `static/`| responsive browser UI (HTML/CSS/JS)  |
-| `metrics.py`         | yfinance fetch (parallel) + technicals + news      |
-| `scoring.py`         | composite scoring + sector ranking + diversification|
-| `stock_universe.py`  | candidate NSE tickers (>=6 per major sector)       |
-| `events_calendar.py` | macro/event calendar + sector tilts (incl. crude/Hormuz)|
-| `ai_impact.py`       | per-sector AI thesis, growth, gov policy, AI tilt  |
-| `analyst.py`         | expert overlay: role/conviction/sizing/stop-loss/thesis|
-| `Dockerfile` · `render.yaml` · `Procfile` | container & deploy config     |
+The `Dockerfile` binds to `$PORT`. On Render, set `MYSQL_URL` in the dashboard
+(or use `render.yaml`). Health check path is `/healthz`.
+
+```bash
+docker build -t market-intel .
+docker run -p 8000:8000 -e PORT=8000 -e MYSQL_URL="mysql+pymysql://…" market-intel
+```
 
 ## Notes & limitations
 
-- Uses Yahoo Finance (`yfinance`), which is **unofficial** and rate-limited;
-  the tool paces requests and retries, but some tickers may occasionally fail.
+- Yahoo Finance (`yfinance`) is unofficial and rate-limited; some tickers may
+  occasionally fail (they're skipped, never fatal).
 - Fundamentals are point-in-time snapshots, not audited filings.
-- The event layer is a set of **editable assumptions**, not forecasts.
-- This is a *screen*, not a valuation model — always read the company's
-  filings, results and risks before acting.
+- The news catalyst layer uses a transparent keyword lexicon (no API key). Plug
+  in a stronger provider in `news.py` if you want deeper coverage.
+- This is a *screen*, not a valuation model — always read the filings first.
