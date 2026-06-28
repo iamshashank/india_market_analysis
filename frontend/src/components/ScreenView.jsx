@@ -14,7 +14,7 @@ import TravelExploreIcon from "@mui/icons-material/TravelExplore";
 import { api } from "../lib/api.js";
 import { fmtNum, fmtPctFrac, fmtUsd } from "../lib/format.js";
 import {
-  SectionHeader, KpiCard, ScoreRing, TickerLink, MarketChip, Jargon,
+  SectionHeader, KpiCard, ScoreRing, TickerLink, MarketChip, Jargon, HorizonScores, SignalChips,
   pillarColor, convColor, candleColor, scoreColor, CardGridSkeleton, KpiSkeleton,
 } from "./common.jsx";
 import { hoverCard } from "../theme.js";
@@ -105,6 +105,10 @@ function PortfolioCard({ p, rank, onOpen }) {
           <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>suggested weight · {p.size_tier} position</Typography>
           <Chip size="small" label={`${p.conviction} conviction`} color={convColor(p.conviction)} variant={p.conviction === "Speculative" ? "outlined" : "filled"} />
         </Stack>
+
+        <Box sx={{ mb: 1 }}><HorizonScores compounder={p.compounder_score} catalyst={p.catalyst_score} momentum={p.momentum_score} dense /></Box>
+
+        <Box sx={{ mb: 1 }}><SignalChips health={p.health} inflection={p.inflection} emerging={p.emerging_compounder} /></Box>
 
         <PillarBars pillars={p.pillars} />
 
@@ -210,7 +214,12 @@ export default function ScreenView({ active, setStatusLine }) {
       <SectionHeader
         overline="Wealth-creation screen"
         title={data.strategy?.title || "Multibagger compounders across cap tiers"}
-        subtitle="Room to grow (size-neutral, ranked within each cap tier) · consistent earnings · limited coverage · news catalysts → concentrated, high-conviction ideas per size class. Not investment advice." />
+        subtitle="Room to grow (size-neutral, ranked within each cap tier) · consistent earnings · limited coverage · news catalysts → concentrated, high-conviction ideas per size class. Not investment advice."
+        action={data.strategy?.label && (
+          <Tooltip title={`Active scoring strategy${(data.strategy?.available_versions || []).length > 1 ? ` · ${data.strategy.available_versions.length} versions available — switch per-stock on the Analyze tab` : ""}.`} arrow>
+            <Chip size="small" color="secondary" variant="outlined" label={`Strategy: ${data.strategy.label}`} sx={{ cursor: "help" }} />
+          </Tooltip>
+        )} />
 
       {/* cap-tier filter (market is chosen globally in the top bar) */}
       <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap alignItems="center">
@@ -322,8 +331,56 @@ function BacktestPanel({ contemporaneous }) {
           <Typography variant="overline" color="success.main">Forward-return backtest (real)</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Stocks scored on <b>{bt.baseline_date}</b> (~{bt.horizon_days}d ago), bucketed by score; forward return
-            measured to the latest price. {bt.snapshots} snapshots accumulated.
+            measured to the latest price. {bt.snapshots} snapshots accumulated{bt.strategy_versions?.length ? ` · strategy ${bt.strategy_versions.join(", ")}` : ""}.
           </Typography>
+
+          {(bt.ic != null || bt.quantile_spread_pct != null || (bt.benchmark_relative || []).some((b) => b.excess_pct != null)) && (
+            <Grid container spacing={1.5} sx={{ mb: 1.5 }}>
+              {bt.ic != null && (
+                <Grid item xs={6} sm={3}>
+                  <Tooltip title="Information Coefficient: Spearman rank correlation between score and forward return. >0 means higher scores tended to outperform; ~0.05+ is a useful signal." arrow>
+                    <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: "action.hover", cursor: "help" }}>
+                      <Typography variant="caption" color="text.secondary">Information Coeff.</Typography>
+                      <Typography variant="h6" color={bt.ic >= 0.03 ? "success.main" : bt.ic <= -0.03 ? "error.main" : "text.primary"}>{bt.ic}</Typography>
+                      <Typography variant="caption" color="text.secondary">score → return rank</Typography>
+                    </Box>
+                  </Tooltip>
+                </Grid>
+              )}
+              {bt.quantile_spread_pct != null && (
+                <Grid item xs={6} sm={3}>
+                  <Tooltip title="Top-quartile minus bottom-quartile average forward return — the tradeable long–short edge." arrow>
+                    <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: "action.hover", cursor: "help" }}>
+                      <Typography variant="caption" color="text.secondary">Top–bottom spread</Typography>
+                      <Typography variant="h6" color={bt.quantile_spread_pct >= 0 ? "success.main" : "error.main"}>{bt.quantile_spread_pct >= 0 ? "+" : ""}{bt.quantile_spread_pct}%</Typography>
+                      <Typography variant="caption" color="text.secondary">quartile spread</Typography>
+                    </Box>
+                  </Tooltip>
+                </Grid>
+              )}
+              {bt.overall_hit_rate_pct != null && (
+                <Grid item xs={6} sm={3}>
+                  <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: "action.hover" }}>
+                    <Typography variant="caption" color="text.secondary">Hit rate</Typography>
+                    <Typography variant="h6">{bt.overall_hit_rate_pct}%</Typography>
+                    <Typography variant="caption" color="text.secondary">names positive</Typography>
+                  </Box>
+                </Grid>
+              )}
+              {(bt.benchmark_relative || []).map((b) => b.excess_pct != null && (
+                <Grid item xs={6} sm={3} key={b.market}>
+                  <Tooltip title={`Portfolio avg ${b.portfolio_avg_pct}% vs ${b.benchmark} ${b.benchmark_return_pct}% over the same window.`} arrow>
+                    <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: "action.hover", cursor: "help" }}>
+                      <Typography variant="caption" color="text.secondary">vs {b.market} ({b.benchmark})</Typography>
+                      <Typography variant="h6" color={b.excess_pct >= 0 ? "success.main" : "error.main"}>{b.excess_pct >= 0 ? "+" : ""}{b.excess_pct}%</Typography>
+                      <Typography variant="caption" color="text.secondary">excess return</Typography>
+                    </Box>
+                  </Tooltip>
+                </Grid>
+              ))}
+            </Grid>
+          )}
+
           <Grid container spacing={1.5}>
             {bt.buckets.map((b) => (
               <Grid item xs={6} sm={3} key={b.bucket}>

@@ -118,6 +118,14 @@ screen_engine = Engine("screen", _build_screen, SCREEN_TTL, SCREEN_KEY)
 premarket_engine = PremarketEngine("premarket", _build_premarket, PREMARKET_TTL, PREMARKET_KEY)
 
 
+def _build_portfolio(force: bool) -> dict:
+    from portfolio.service import build
+    return build(force)
+
+
+portfolio_engine = Engine("portfolio", _build_portfolio, 1800.0, "portfolio_latest")
+
+
 _SPA_DIR = os.path.join(_BACKEND_DIR, "static", "spa")
 _SPA_INDEX = os.path.join(_SPA_DIR, "index.html")
 
@@ -228,13 +236,15 @@ _ANALYZE_TTL = 900.0  # 15 min
 def api_analyze():
     from signals.screener import analyze_ticker
     ticker = (request.args.get("ticker") or "").strip()
+    strat = (request.args.get("strategy") or "").strip()
     if not ticker:
         return jsonify({"available": False, "reason": "No ticker given"}), 400
-    cached = _analyze_cache.get(ticker)
+    cache_key = f"{ticker}|{strat}"
+    cached = _analyze_cache.get(cache_key)
     if cached and (time.time() - cached["ts"] < _ANALYZE_TTL):
         return jsonify(cached["data"])
-    data = analyze_ticker(ticker)
-    _analyze_cache[ticker] = {"data": data, "ts": time.time()}
+    data = analyze_ticker(ticker, strat or None)
+    _analyze_cache[cache_key] = {"data": data, "ts": time.time()}
     return jsonify(data)
 
 
@@ -271,6 +281,73 @@ def api_backtest():
     _bt_cache["data"] = data
     _bt_cache["ts"] = now
     return jsonify(data)
+
+
+# ---------- portfolio (real holdings: manual / CSV / broker API) ----------
+
+@app.route("/api/portfolio")
+def api_portfolio():
+    return jsonify(portfolio_engine.payload(0.5))
+
+
+@app.route("/api/portfolio/add", methods=["POST"])
+def api_portfolio_add():
+    from portfolio import holdings_store
+    b = request.get_json(silent=True) or {}
+    if not (b.get("symbol") or "").strip():
+        return jsonify({"ok": False, "reason": "symbol required"}), 400
+    holdings_store.add(b.get("broker", "Manual"), b["symbol"], b.get("market", "IN"),
+                       b.get("quantity"), b.get("avg_price"))
+    portfolio_engine.start(force=True)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/portfolio/upload", methods=["POST"])
+def api_portfolio_upload():
+    from portfolio import holdings_store, csv_import
+    b = request.get_json(silent=True) or {}
+    broker = (b.get("broker") or "CSV").strip() or "CSV"
+    market = b.get("market") if b.get("market") in ("IN", "BSE", "US") else "IN"
+    items = csv_import.parse_csv(b.get("csv") or "")
+    for it in items:
+        it["broker"] = broker
+        it["market"] = market
+    n = holdings_store.add_many(items)
+    portfolio_engine.start(force=True)
+    return jsonify({"ok": True, "added": n})
+
+
+@app.route("/api/portfolio/cas", methods=["POST"])
+def api_portfolio_cas():
+    from portfolio import holdings_store, cas_import
+    f = request.files.get("file")
+    if f is None:
+        return jsonify({"ok": False, "reason": "No file uploaded"}), 400
+    password = request.form.get("password", "")   # transient — never stored or logged
+    res = cas_import.parse_cas(f.read(), password)
+    if not res.get("available"):
+        return jsonify({"ok": False, "reason": res.get("reason", "Could not parse the CAS")})
+    n = holdings_store.add_many(res["holdings"])
+    portfolio_engine.start(force=True)
+    return jsonify({"ok": True, "added": n, "note": res.get("note"), "sample": res.get("sample")})
+
+
+@app.route("/api/portfolio/remove", methods=["POST"])
+def api_portfolio_remove():
+    from portfolio import holdings_store
+    b = request.get_json(silent=True) or {}
+    if b.get("id"):
+        holdings_store.remove(b["id"])
+        portfolio_engine.start(force=True)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/portfolio/clear", methods=["POST"])
+def api_portfolio_clear():
+    from portfolio import holdings_store
+    holdings_store.clear()
+    portfolio_engine.start(force=True)
+    return jsonify({"ok": True})
 
 
 @app.route("/healthz")
@@ -324,6 +401,7 @@ def api_paper_dashboard():
 paper_db.init_paper_db()
 screen_engine.warm()
 premarket_engine.warm()
+portfolio_engine.warm()
 screen_engine.start(force=False)
 premarket_engine.start(force=False)
 

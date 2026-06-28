@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Box, Card, CardContent, Typography, Grid, Stack, Chip, LinearProgress, Button,
-  Alert, List, ListItem, Divider,
+  Alert, List, ListItem, Divider, ToggleButton, ToggleButtonGroup,
 } from "@mui/material";
 import AssessmentIcon from "@mui/icons-material/Assessment";
 import { useSearchParams } from "react-router-dom";
@@ -9,7 +9,7 @@ import { LineChart } from "@mui/x-charts/LineChart";
 import { api } from "../lib/api.js";
 import { fmtNum, fmtPctFrac, fmtUsd } from "../lib/format.js";
 import {
-  SectionHeader, ScoreRing, TickerLink, MarketChip, Jargon,
+  SectionHeader, ScoreRing, TickerLink, MarketChip, Jargon, SignalChips,
   pillarColor, convColor, candleColor, scoreColor, CardGridSkeleton,
 } from "./common.jsx";
 import SymbolSearch from "./SymbolSearch.jsx";
@@ -28,21 +28,23 @@ export default function AnalyzeView() {
   const { region, market: marketCfg } = useMarket();
   const [params, setParams] = useSearchParams();
   const ticker = params.get("ticker") || "";
+  const stratVer = params.get("strategy") || "";
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showDialog, setShowDialog] = useState(false);
 
   function pick(tk) { setParams((p) => { p.set("ticker", tk); return p; }, { replace: true }); }
+  function setStrategy(v) { setParams((p) => { if (v) p.set("strategy", v); else p.delete("strategy"); return p; }, { replace: true }); }
 
   useEffect(() => {
     if (!ticker) { setData(null); return; }
     let cancelled = false;
     setLoading(true); setData(null);
-    api.analyze(ticker)
+    api.analyze(ticker, stratVer)
       .then((j) => { if (!cancelled) { setData(j); setLoading(false); } })
       .catch(() => { if (!cancelled) { setData({ available: false, reason: "Request failed" }); setLoading(false); } });
     return () => { cancelled = true; };
-  }, [ticker]);
+  }, [ticker, stratVer]);
 
   const wsum = data?.weights ? Object.values(data.weights).reduce((a, b) => a + b, 0) : 1;
 
@@ -100,6 +102,37 @@ export default function AnalyzeView() {
                   <Button variant="contained" startIcon={<AssessmentIcon />} onClick={() => setShowDialog(true)}>Full fundamentals</Button>
                 </Grid>
               </Grid>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ sm: "center" }}>
+                <Box>
+                  <Typography variant="overline" color="primary">Multi-horizon view</Typography>
+                  <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mt: 0.5 }}>
+                    <ScoreRing value={data.compounder_score} size={62} label="compounder" />
+                    <ScoreRing value={data.catalyst_score} size={62} label="catalyst" />
+                    <ScoreRing value={data.momentum_score} size={62} label="momentum" />
+                  </Stack>
+                  <Box sx={{ mt: 1.25 }}><SignalChips health={data.health} inflection={data.inflection} emerging={data.emerging_compounder} /></Box>
+                </Box>
+                {(data.available_strategies || []).length > 1 && (
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>Strategy lens</Typography>
+                    <ToggleButtonGroup exclusive size="small" value={data.strategy_version}
+                      onChange={(e, v) => v && setStrategy(v === "core-v1" ? "" : v)}>
+                      {data.available_strategies.map((s) => (
+                        <ToggleButton key={s.version} value={s.version} sx={{ textTransform: "none" }}>{s.label}</ToggleButton>
+                      ))}
+                    </ToggleButtonGroup>
+                  </Box>
+                )}
+              </Stack>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1.5 }}>
+                <b>Compounder</b> = long-term wealth quality · <b>Catalyst</b> = near-term entry timing · <b>Momentum</b> = price trend.
+                Scored under <b>{(data.available_strategies || []).find((s) => s.version === data.strategy_version)?.label || data.strategy_version}</b> — switching the lens re-scores this stock live.
+              </Typography>
             </CardContent>
           </Card>
 

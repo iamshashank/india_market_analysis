@@ -15,6 +15,7 @@ import ShowChartIcon from "@mui/icons-material/ShowChart";
 import NotificationsActiveIcon from "@mui/icons-material/NotificationsActive";
 import ScienceIcon from "@mui/icons-material/Science";
 import TravelExploreIcon from "@mui/icons-material/TravelExplore";
+import AccountBalanceWalletIcon from "@mui/icons-material/AccountBalanceWallet";
 
 import ScreenView from "./components/ScreenView.jsx";
 import ThemesView from "./components/ThemesView.jsx";
@@ -22,6 +23,7 @@ import OptionsView from "./components/OptionsView.jsx";
 import PredictorView from "./components/PredictorView.jsx";
 import PaperView from "./components/PaperView.jsx";
 import AnalyzeView from "./components/AnalyzeView.jsx";
+import PortfolioView from "./components/PortfolioView.jsx";
 import GlossaryPage from "./components/GlossaryPage.jsx";
 import GlossaryDrawer from "./components/GlossaryDrawer.jsx";
 import SymbolSearch from "./components/SymbolSearch.jsx";
@@ -33,6 +35,7 @@ import { api } from "./lib/api.js";
 const TABS = [
   { id: "screen", label: "Multibagger Finder", icon: <RocketLaunchIcon fontSize="small" /> },
   { id: "analyze", label: "Analyze a Stock", icon: <TravelExploreIcon fontSize="small" /> },
+  { id: "portfolio", label: "My Portfolio", icon: <AccountBalanceWalletIcon fontSize="small" /> },
   { id: "themes", label: "Themes", icon: <LocalFireDepartmentIcon fontSize="small" /> },
   { id: "options", label: "Options / F&O", icon: <ShowChartIcon fontSize="small" /> },
   { id: "predictor", label: "Next-Day Predictor", icon: <NotificationsActiveIcon fontSize="small" /> },
@@ -147,6 +150,7 @@ export default function App() {
             <Route path="/" element={<Navigate to="/screen" replace />} />
             <Route path="/screen" element={<ScreenView active={tab === "screen"} setStatusLine={setStatusLine} />} />
             <Route path="/analyze" element={<AnalyzeView />} />
+            <Route path="/portfolio" element={<PortfolioView active={tab === "portfolio"} />} />
             <Route path="/themes" element={<ThemesView active={tab === "themes"} />} />
             <Route path="/options" element={<OptionsView />} />
             <Route path="/predictor" element={<PredictorView active={tab === "predictor"} setStatusLine={setStatusLine} />} />
