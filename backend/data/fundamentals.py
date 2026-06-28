@@ -52,6 +52,14 @@ class Fundamentals:
     profit_margin: Optional[float] = None
     debt_to_equity: Optional[float] = None
     fcf_margin: Optional[float] = None
+    current_ratio: Optional[float] = None
+    quick_ratio: Optional[float] = None
+    return_on_assets: Optional[float] = None
+    operating_cashflow: Optional[float] = None
+    net_income: Optional[float] = None
+    total_cash: Optional[float] = None
+    total_debt: Optional[float] = None
+    vol_trend: Optional[float] = None
     revenue_growth: Optional[float] = None
     earnings_growth: Optional[float] = None
     num_analysts: Optional[int] = None
@@ -129,6 +137,24 @@ def _technicals(hist: pd.DataFrame) -> Dict[str, Optional[float]]:
     return out
 
 
+def _volume_trend(hist: pd.DataFrame) -> Optional[float]:
+    """Recent (20d) average volume vs the prior ~80d. >1 = volume picking up,
+    a 'waking up' tell for under-covered names."""
+    if hist is None or getattr(hist, "empty", True) or "Volume" not in hist:
+        return None
+    vol = hist["Volume"].dropna()
+    if len(vol) < 60:
+        return None
+    recent = float(vol.tail(20).mean())
+    prior_series = vol.iloc[:-20]
+    if not len(prior_series):
+        return None
+    prior = float(prior_series.tail(80).mean())
+    if not prior or prior <= 0:
+        return None
+    return round(recent / prior, 2)
+
+
 def fetch_one(ticker: str, meta: dict, retries: int = 1) -> Fundamentals:
     name = meta.get("name", ticker)
     market = meta.get("market", "US")
@@ -141,8 +167,11 @@ def fetch_one(ticker: str, meta: dict, retries: int = 1) -> Fundamentals:
         try:
             tk = yf.Ticker(ticker)
             info = tk.info or {}
+            if not meta.get("name") or meta.get("name") == ticker:
+                name = info.get("longName") or info.get("shortName") or name
             hist = tk.history(period="1y", auto_adjust=True)
             tech = _technicals(hist)
+            vol_trend = _volume_trend(hist)
 
             price = _safe(info, "currentPrice") or _safe(info, "regularMarketPrice")
             if price is None and hist is not None and not hist.empty:
@@ -194,6 +223,14 @@ def fetch_one(ticker: str, meta: dict, retries: int = 1) -> Fundamentals:
                 gross_margin=_safe(info, "grossMargins"),
                 profit_margin=_safe(info, "profitMargins"),
                 debt_to_equity=d2e, fcf_margin=fcf_margin,
+                current_ratio=_safe(info, "currentRatio"),
+                quick_ratio=_safe(info, "quickRatio"),
+                return_on_assets=_safe(info, "returnOnAssets"),
+                operating_cashflow=_safe(info, "operatingCashflow"),
+                net_income=_safe(info, "netIncomeToCommon"),
+                total_cash=_safe(info, "totalCash"),
+                total_debt=_safe(info, "totalDebt"),
+                vol_trend=vol_trend,
                 revenue_growth=_safe(info, "revenueGrowth"),
                 earnings_growth=_safe(info, "earningsGrowth")
                 or _safe(info, "earningsQuarterlyGrowth"),

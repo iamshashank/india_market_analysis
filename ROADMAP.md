@@ -50,6 +50,30 @@ browser-session pattern (homepage cookies + real headers + pacing + graceful
 fallback); jobs live under `pipelines/<cadence|india>/`, bootstrap `sys.path`
 to `backend/`, and persist via `core.store` / `core.score_history`.
 
+## 🧪 Phase 1.5 — Proprietary engine (IN PROGRESS)
+
+The differentiators that make the model *ours*, built between V1 and Phase 2.
+
+- ✅ **Data-provider foundation** — pluggable providers (Yahoo active;
+  Moneycontrol / paid-API / broker scaffolded, env-gated) behind `data.feed`,
+  with a **point-in-time fundamentals cache** (`fundamentals_snapshots`) = the
+  longitudinal data moat.
+- ✅ **Versioned strategies** (`signals/strategy.py`) — named, curated weight/lens
+  sets selected via `STRATEGY_VERSION`; stamped into every snapshot so each is
+  independently backtestable. Ships `core-v1` + `quality-compounder-v1`.
+- ✅ **Multi-horizon scoring** — every name gets a **Compounder** (long-term) and
+  **Catalyst** (entry-timing, incl. momentum) score beside the composite.
+- 🔜 **#2 Measurement harness (quantify "better or worse")** — a self-backtest
+  that, per strategy version, reports **Information Coefficient (IC)**, **quantile
+  (top–bottom) return spread**, **hit-rate / precision@K**, and **benchmark-relative**
+  return, using the accumulating point-in-time snapshots. Lets us A/B strategy
+  versions on the same history. *Needs ≥2 snapshot dates to be meaningful (started
+  2026-06-27); becomes robust as the nightly scan runs (Phase 2 #F).*
+- 🔜 **Discovery-inflection signal** — "hidden but waking up" (low coverage +
+  strong fundamentals + accelerating news velocity / volume), from the moat.
+- 🔜 **Governance + smart-money gate** — promoter pledging, insider/FII-DII flows,
+  forensic flags (Yahoo now; richer once MC/broker wired).
+
 ## 🗓️ Backlog (deferred from V1 review)
 
 - **Watchlists + alerts** (MySQL-backed) — *next after pipelines unless reprioritised.*

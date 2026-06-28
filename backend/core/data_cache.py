@@ -29,7 +29,8 @@ _KEEP = (
     "ticker", "name", "market", "currency", "sector", "industry", "price",
     "market_cap_usd", "trailing_pe", "forward_pe", "peg", "price_to_book",
     "roe", "gross_margin", "profit_margin", "debt_to_equity", "fcf_margin",
-    "revenue_growth", "earnings_growth", "num_analysts", "inst_hold_pct",
+    "current_ratio", "return_on_assets", "operating_cashflow", "net_income",
+    "vol_trend", "revenue_growth", "earnings_growth", "num_analysts", "inst_hold_pct",
     "adv_value_usd", "ret_6m", "ret_1y", "quarterly_ni", "quarterly_rev", "_source",
 )
 

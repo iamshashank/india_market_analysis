@@ -78,15 +78,29 @@ def nse_equities(force: bool = False) -> List[dict]:
                 sym = (row.get("SYMBOL") or "").strip()
                 series = (row.get(" SERIES") or row.get("SERIES") or "").strip()
                 name = (row.get("NAME OF COMPANY") or "").strip()
+                isin = (row.get(" ISIN NUMBER") or row.get("ISIN NUMBER") or "").strip()
                 if not sym or (series and series not in ("EQ", "BE")):
                     continue
-                rows.append({"ticker": f"{sym}.NS", "name": name, "market": "IN", "currency": "INR"})
+                rows.append({"ticker": f"{sym}.NS", "name": name, "isin": isin,
+                             "market": "IN", "currency": "INR"})
             if rows:
                 _save_cache("nse", rows)
                 return rows
         except Exception:  # noqa: BLE001
             continue
     return _load_cache("nse")
+
+
+def isin_to_ticker_map() -> Dict[str, str]:
+    """ISIN -> NSE ticker map, built from the equity master (which carries ISINs).
+    Used to resolve depository / CAS holdings to tickers. Refetches once if an
+    older cache (without ISINs) is present."""
+    rows = nse_equities()
+    m = {r["isin"]: r["ticker"] for r in rows if r.get("isin")}
+    if not m:
+        rows = nse_equities(force=True)
+        m = {r["isin"]: r["ticker"] for r in rows if r.get("isin")}
+    return m
 
 
 # ---------------------------------------------------------------------------

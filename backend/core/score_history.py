@@ -57,6 +57,14 @@ def _init() -> bool:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                 """
             ))
+            # migrate: add strategy_version column if this is an older table
+            cols = conn.execute(text(
+                "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='score_history'"
+            )).fetchall()
+            if "strategy_version" not in {c[0] for c in cols}:
+                conn.execute(text(
+                    "ALTER TABLE score_history ADD COLUMN strategy_version VARCHAR(32) NULL"))
         _initialized = True
         return True
     except Exception as e:  # noqa: BLE001
@@ -96,6 +104,7 @@ def snapshot(scored: List[dict], snapshot_date: Optional[str] = None) -> int:
         "score": s.get("score"),
         "price": (s.get("metrics") or {}).get("price") or s.get("price"),
         "pillars": s.get("pillars") or {},
+        "strategy_version": s.get("strategy_version"),
     } for s in scored if s.get("ticker")]
     if not rows:
         return 0
@@ -109,10 +118,11 @@ def snapshot(scored: List[dict], snapshot_date: Optional[str] = None) -> int:
                     conn.execute(text(
                         """
                         INSERT INTO score_history
-                          (snapshot_date, ticker, market, cap_tier, sector, score, price, pillars)
-                        VALUES (:snapshot_date,:ticker,:market,:cap_tier,:sector,:score,:price,:pillars)
+                          (snapshot_date, ticker, market, cap_tier, sector, score, price, pillars, strategy_version)
+                        VALUES (:snapshot_date,:ticker,:market,:cap_tier,:sector,:score,:price,:pillars,:strategy_version)
                         ON DUPLICATE KEY UPDATE score=VALUES(score), price=VALUES(price),
-                          pillars=VALUES(pillars), cap_tier=VALUES(cap_tier), sector=VALUES(sector)
+                          pillars=VALUES(pillars), cap_tier=VALUES(cap_tier), sector=VALUES(sector),
+                          strategy_version=VALUES(strategy_version)
                         """
                     ), {**r, "pillars": json.dumps(r["pillars"])})
             return len(rows)
@@ -162,11 +172,12 @@ def all_snapshots() -> List[dict]:
             eng = store.get_engine()
             with eng.connect() as conn:
                 res = conn.execute(text(
-                    "SELECT snapshot_date, ticker, score, price FROM score_history"
+                    "SELECT snapshot_date, ticker, score, price, market, strategy_version FROM score_history"
                 )).fetchall()
             return [{"snapshot_date": str(r[0])[:10], "ticker": r[1],
                      "score": float(r[2]) if r[2] is not None else None,
-                     "price": float(r[3]) if r[3] is not None else None} for r in res]
+                     "price": float(r[3]) if r[3] is not None else None,
+                     "market": r[4], "strategy_version": r[5]} for r in res]
         except Exception as e:  # noqa: BLE001
             print(f"[score_history] all_snapshots failed: {e}")
     return _load_local()

@@ -26,11 +26,14 @@ import math
 from typing import Dict, List, Optional
 
 from core.config import (
-    WEIGHTS, MIN_ADV_USD, MIN_CAP_USD, cap_tier,
+    MIN_ADV_USD, MIN_CAP_USD, cap_tier,
     PORTFOLIO_SIZE, MAX_WEIGHT_PCT, MIN_WEIGHT_PCT, MAX_PER_SECTOR,
     MIN_SCORE, LOW_ANALYST_COUNT, LOW_NEWS_COUNT,
 )
 from signals.earnings_quality import consistency as earnings_consistency, label as consistency_label
+from signals import strategy
+from signals import health as health_mod
+from signals import inflection as inflection_mod
 
 
 def _clip(x: float, lo: float, hi: float) -> float:
@@ -138,8 +141,33 @@ def _valuation_pillar(rows: List[dict]) -> Dict[str, float]:
     return out
 
 
+def _momentum_pillar(rows: List[dict]) -> Dict[str, float]:
+    """Near-term price momentum (entry timing), percentile-ranked: blends the
+    6-month return, distance above the 200-DMA, and proximity to the 52-week
+    high. Feeds the Catalyst lens, not the long-term composite."""
+    def metric(r):
+        parts = []
+        if isinstance(r.get("ret_6m"), (int, float)):
+            parts.append(_clip(r["ret_6m"], -0.6, 1.5))
+        if isinstance(r.get("above_200dma"), (int, float)):
+            parts.append(_clip(r["above_200dma"], -0.6, 0.6))
+        if isinstance(r.get("pct_of_52w_high"), (int, float)):
+            parts.append(r["pct_of_52w_high"] - 0.5)
+        return sum(parts) / len(parts) if parts else None
+    return _pctile_scores({r["ticker"]: metric(r) for r in rows})
+
+
+def _blend(values: Dict[str, float], weights: Dict[str, float]) -> float:
+    """Weighted blend of named 0-100 sub-scores (missing keys default to 50)."""
+    wsum = sum(weights.values())
+    if not wsum:
+        return 50.0
+    return sum(w * values.get(k, 50.0) for k, w in weights.items()) / wsum
+
+
 def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
-                   force_include: Optional[set] = None) -> List[dict]:
+                   force_include: Optional[set] = None,
+                   strategy_version: Optional[str] = None) -> List[dict]:
     """Score every eligible name; return list sorted by composite desc.
 
     ``force_include`` is a set of tickers that bypass the liquidity/min-cap
@@ -170,6 +198,10 @@ def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
     growth = _growth_pillar(rows)
     valuation = _valuation_pillar(rows)
     room = _room_to_grow_pillar(rows)
+    momentum = _momentum_pillar(rows)
+
+    strat = strategy.get(strategy_version) if strategy_version else strategy.active()
+    weights = strat.weights
 
     scored: List[dict] = []
     for r in rows:
@@ -188,10 +220,28 @@ def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
             "valuation": valuation[t],
             "catalyst": news.get("catalyst_score", 50.0),
         }
-        wsum = sum(WEIGHTS.values())
-        composite = sum(WEIGHTS[k] * pillars[k] for k in WEIGHTS) / wsum
+        # --- hybrid: forensic health gate + discovery inflection ---
+        health_res = health_mod.assess(r)
+        if health_res.get("score") is not None:
+            pillars["quality"] = round(0.65 * pillars["quality"] + 0.35 * health_res["score"], 1)
+        infl = inflection_mod.assess(r, news, pillars["under_covered"],
+                                     pillars["quality"], pillars["consistency"])
+        # rising attention nudges the catalyst pillar (gentle, to avoid double-count)
+        pillars["catalyst"] = round(_clip(0.82 * pillars["catalyst"] + 0.18 * infl["score"], 0, 100), 1)
 
-        conviction = _conviction(composite, pillars, cons_score, news, r)
+        wsum = sum(weights.values())
+        composite = sum(weights.get(k, 0.0) * pillars[k] for k in pillars) / wsum
+        # forensic distress gate: dock weak/penalised names so they can't top the screen
+        composite = max(0.0, composite - {"Distress": 6.0, "Watch": 2.0}.get(health_res.get("label"), 0.0))
+
+        # multi-horizon lenses: same inputs, different emphasis
+        horizon_vals = {**pillars, "momentum": momentum[t]}
+        compounder_score = _blend(horizon_vals, strat.compounder_pillars)
+        catalyst_score = _blend(horizon_vals, strat.catalyst_pillars)
+
+        emerging = bool(health_res.get("label") in ("Strong", "Sound")
+                        and infl["score"] >= 65 and pillars["under_covered"] >= 60)
+        conviction = _conviction(composite, pillars, cons_score, news, r, health_res)
         scored.append({
             "ticker": t,
             "name": r.get("name"),
@@ -203,6 +253,13 @@ def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
             "price": r.get("price"),
             "market_cap_usd": r.get("market_cap_usd"),
             "score": round(composite, 1),
+            "compounder_score": round(compounder_score, 1),
+            "catalyst_score": round(catalyst_score, 1),
+            "momentum_score": round(momentum[t], 1),
+            "health": health_res,
+            "inflection": infl,
+            "emerging_compounder": emerging,
+            "strategy_version": strat.version,
             "pillars": {k: round(v, 1) for k, v in pillars.items()},
             "conviction": conviction,
             "consistency_label": consistency_label(cons_score),
@@ -230,8 +287,8 @@ def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
                 "top_events": news.get("top_events", []),
                 "headlines": news.get("headlines", [])[:5],
             },
-            "thesis": _thesis(pillars, cons_score, news, r),
-            "risks": _risks(pillars, cons_score, news, r),
+            "thesis": _thesis(pillars, cons_score, news, r, health_res, infl, emerging),
+            "risks": _risks(pillars, cons_score, news, r, health_res),
         })
 
     scored.sort(key=lambda x: x["score"], reverse=True)
@@ -239,7 +296,7 @@ def score_universe(funda_rows: List[dict], news_map: Dict[str, dict],
 
 
 def _conviction(composite: float, pillars: dict, cons_score: Optional[float],
-                news: dict, r: dict) -> str:
+                news: dict, r: dict, health_res: Optional[dict] = None) -> str:
     if composite >= 70 and cons_score is not None and news.get("negative", 0) == 0:
         base = "High"
     elif composite >= 60:
@@ -252,6 +309,12 @@ def _conviction(composite: float, pillars: dict, cons_score: Optional[float],
             base = "Medium"
         elif base == "Medium":
             base = "Speculative"
+    # forensic gate: financial distress / multiple health flags cap conviction
+    flags = (health_res or {}).get("flags", [])
+    if (health_res or {}).get("label") == "Distress":
+        base = "Speculative"
+    elif len(flags) >= 2 and base == "High":
+        base = "Medium"
     return base
 
 
@@ -259,8 +322,12 @@ def _fmt_pct(v: Optional[float]) -> str:
     return f"{v * 100:.0f}%" if isinstance(v, (int, float)) else "n/a"
 
 
-def _thesis(pillars: dict, cons_score: Optional[float], news: dict, r: dict) -> List[str]:
+def _thesis(pillars: dict, cons_score: Optional[float], news: dict, r: dict,
+            health_res: Optional[dict] = None, infl: Optional[dict] = None,
+            emerging: bool = False) -> List[str]:
     out: List[str] = []
+    if emerging:
+        out.append("Emerging compounder — sound financials, still under-covered, and attention is starting to rise.")
     tier = r.get("_tier")
     if pillars.get("room_to_grow", 0) >= 65:
         out.append(f"Strong runway for its size — ranks high on room-to-grow among {tier or 'its'}-cap peers.")
@@ -273,13 +340,20 @@ def _thesis(pillars: dict, cons_score: Optional[float], news: dict, r: dict) -> 
         out.append(f"Growth runway intact (rev {_fmt_pct(r.get('revenue_growth'))}, EPS {_fmt_pct(r.get('earnings_growth'))}).")
     if pillars["quality"] >= 65:
         out.append(f"Quality balance sheet/returns (ROE {_fmt_pct(r.get('roe'))}, margin {_fmt_pct(r.get('profit_margin'))}).")
+    if health_res and health_res.get("label") == "Strong":
+        out.append("Strong financial health — good liquidity, low leverage, cash-backed earnings.")
+    if infl and infl.get("label") == "Inflecting":
+        out.append("Discovery inflection — news flow / volume picking up off a low base.")
     if news.get("top_events"):
         out.append("Recent catalysts: " + ", ".join(news["top_events"][:3]) + ".")
     return out[:5] or ["Passes the screen on a blend of size-relative growth, quality and value."]
 
 
-def _risks(pillars: dict, cons_score: Optional[float], news: dict, r: dict) -> List[str]:
+def _risks(pillars: dict, cons_score: Optional[float], news: dict, r: dict,
+           health_res: Optional[dict] = None) -> List[str]:
     out: List[str] = []
+    for f in (health_res or {}).get("flags", [])[:2]:
+        out.append(f)
     tier = r.get("_tier")
     if tier in ("Micro", "Small"):
         out.append(f"{tier}-cap: more volatile and less liquid; size positions carefully.")

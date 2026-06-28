@@ -22,6 +22,75 @@ export const convColor = (c) => (c === "High" ? "success" : c === "Medium" ? "wa
 export const candleColor = (bias) => (bias === "bullish" ? "success" : bias === "bearish" ? "error" : "default");
 export const scoreColor = (v) => (v >= 70 ? "success" : v >= 55 ? "primary" : v >= 45 ? "warning" : "error");
 
+// ---- multi-horizon score chips (Compounder / Catalyst / Momentum) ----
+const HORIZON_TIPS = {
+  Compounder: "Long-term wealth lens: quality, earnings consistency, growth runway, room to grow & value — is this a great business to own for years?",
+  Catalyst: "Near-term entry-timing lens: recent news/event catalysts + price momentum — is now a good moment to enter?",
+  Momentum: "Price momentum: 6-month return, distance above the 200-day average, and proximity to the 52-week high.",
+};
+export function HorizonScores({ compounder, catalyst, momentum, dense = false }) {
+  const cell = (label, v) => (
+    <Tooltip key={label} title={HORIZON_TIPS[label]} arrow enterTouchDelay={0}>
+      <Box sx={{ textAlign: "center", px: 1, py: dense ? 0.25 : 0.5, borderRadius: 1.5,
+        bgcolor: "action.hover", cursor: "help", minWidth: dense ? 56 : 64 }}>
+        <Typography sx={{ fontSize: 9, textTransform: "uppercase", letterSpacing: ".5px" }} color="text.secondary">{label}</Typography>
+        <Typography variant={dense ? "body2" : "subtitle2"} fontWeight={800} color={v == null ? "text.disabled" : `${scoreColor(v)}.main`}>
+          {v == null ? "\u2014" : Math.round(v)}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+  return (
+    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+      {compounder != null && cell("Compounder", compounder)}
+      {catalyst != null && cell("Catalyst", catalyst)}
+      {momentum != null && cell("Momentum", momentum)}
+    </Stack>
+  );
+}
+
+// ---- forensic-health + discovery-inflection signal chips ----
+export const healthColor = (label) => ({ Strong: "success", Sound: "info", Watch: "warning", Distress: "error" }[label] || "default");
+export const inflColor = (label) => ({ Inflecting: "success", Stirring: "info", Quiet: "default" }[label] || "default");
+
+// Plain-English meaning of each health / inflection label (shared by tooltips + glossary).
+export const HEALTH_LABEL_TIP = {
+  Strong: "Strong — good liquidity, low leverage, and earnings backed by cash.",
+  Sound: "Sound — a generally healthy balance sheet with only minor watch-items.",
+  Watch: "Watch — some balance-sheet stress (leverage, liquidity, or weak cash conversion).",
+  Distress: "Distress — multiple red flags (high leverage / weak liquidity / losses). Higher risk.",
+  Unknown: "Not enough statement data to judge financial health.",
+};
+export const INFLECTION_LABEL_TIP = {
+  Inflecting: "Inflecting — under-covered + sound, with news/volume clearly picking up (“hidden but waking up”).",
+  Stirring: "Stirring — early signs of rising attention off a low base.",
+  Quiet: "Quiet — little change in attention or coverage right now.",
+};
+
+export function SignalChips({ health, inflection, emerging, size = "small" }) {
+  const has = emerging || (health?.label && health.label !== "Unknown") || (inflection?.label && inflection.label !== "Quiet");
+  if (!has) return null;
+  return (
+    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+      {emerging && (
+        <Tooltip title="Emerging compounder — a financially sound (Strong/Sound), still under-covered company whose discovery is inflecting. The multibagger sweet spot; deliberately rare." arrow>
+          <Chip size={size} color="secondary" label="✨ Emerging compounder" sx={{ cursor: "help" }} />
+        </Tooltip>
+      )}
+      {health?.label && health.label !== "Unknown" && (
+        <Tooltip title={`Financial health — ${HEALTH_LABEL_TIP[health.label] || health.label}${(health.flags || []).length ? " Flags: " + health.flags.join("; ") + "." : ""}`} arrow>
+          <Chip size={size} variant="outlined" color={healthColor(health.label)} label={`Health: ${health.label}`} sx={{ cursor: "help" }} />
+        </Tooltip>
+      )}
+      {inflection?.label && inflection.label !== "Quiet" && (
+        <Tooltip title={`Discovery inflection — ${INFLECTION_LABEL_TIP[inflection.label] || inflection.label}`} arrow>
+          <Chip size={size} variant="outlined" color={inflColor(inflection.label)} label={inflection.label} sx={{ cursor: "help" }} />
+        </Tooltip>
+      )}
+    </Stack>
+  );
+}
+
 // ---- section header (title + subtitle + optional action) ----
 export function SectionHeader({ title, subtitle, action, overline }) {
   return (

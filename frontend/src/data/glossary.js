@@ -44,6 +44,23 @@ export const GLOSSARY = [
     def: "Putting meaningful weight in your best few ideas rather than spreading thin. Higher conviction = larger suggested position." },
   { term: "Catalyst", category: "Strategy",
     def: "A news event (order win, approval, expansion, results beat) that can cause the market to re-rate a stock." },
+  // ---- Health & Signals ----
+  { term: "Financial health", category: "Health & Signals",
+    def: "A fast safety check from the financial statements — liquidity (current ratio), leverage (debt/equity), profitability, and whether earnings are backed by cash. Labelled Strong, Sound, Watch or Distress, and it raises red flags that can cap a stock's conviction." },
+  { term: "Health: Strong / Sound / Watch / Distress", category: "Health & Signals",
+    def: "Strong = good liquidity, low leverage, cash-backed earnings. Sound = healthy with only minor watch-items. Watch = some balance-sheet stress. Distress = multiple red flags (high leverage / weak liquidity / losses) — higher risk." },
+  { term: "Forensic red flags", category: "Health & Signals",
+    def: "Specific warnings from the statements: high leverage (D/E > 1.5), weak liquidity (current ratio < 1), negative free cash flow, low cash conversion (earnings not backed by operating cash), or losses. Two or more cap a stock's conviction." },
+  { term: "Discovery inflection", category: "Health & Signals",
+    def: "Detects an overlooked but sound company that is *starting* to get noticed — low coverage + strong fundamentals + accelerating news flow / volume / price. Labelled Inflecting (clearly waking up), Stirring (early signs) or Quiet." },
+  { term: "Emerging compounder", category: "Health & Signals",
+    def: "The sweet-spot signal: a financially sound (Strong/Sound), still under-covered company whose discovery is inflecting. The intersection where multibaggers often begin — deliberately rare and selective." },
+  { term: "Compounder score", category: "Health & Signals",
+    def: "The long-term lens: how good a business is to own for years — quality, earnings consistency, growth runway, room to grow and value. One of the multi-horizon scores." },
+  { term: "Catalyst score", category: "Health & Signals",
+    def: "The near-term entry-timing lens: recent news/event catalysts plus price momentum. Pairs with the Compounder score so you can find a great business *and* a good entry." },
+  { term: "Momentum (score)", category: "Health & Signals",
+    def: "Price momentum used in the Catalyst lens: 6-month return, distance above the 200-day average, and proximity to the 52-week high." },
   // ---- Technicals ----
   { term: "ATR (Average True Range)", abbr: "ATR", category: "Technicals",
     def: "Average daily price range over ~14 days — a volatility measure. We size stop-losses using ATR so they fit each stock." },
@@ -183,7 +200,7 @@ export const GLOSSARY = [
 ];
 
 export const GLOSSARY_CATEGORIES = [
-  "Strategy", "Valuation", "Quality", "Growth", "Statements", "Quant", "Technicals", "Candlestick", "F&O", "Market",
+  "Strategy", "Health & Signals", "Valuation", "Quality", "Growth", "Statements", "Quant", "Technicals", "Candlestick", "F&O", "Market",
 ];
 
 // Candlestick patterns with a drawable shape spec + richer explanation.

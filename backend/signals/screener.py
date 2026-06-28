@@ -12,10 +12,11 @@ from __future__ import annotations
 import time
 from typing import List
 
-from core.config import WEIGHTS, INCLUDE_NEWS, DISCLAIMER, PORTFOLIO_SIZE
+from core.config import INCLUDE_NEWS, DISCLAIMER, PORTFOLIO_SIZE
 from data.universe import UNIVERSE
 from data.feed import fetch_universe
 from signals import news as news_mod
+from signals import strategy as strategy_mod
 from data import candles as candles_mod
 from signals import themes as themes_mod
 from signals.multibagger import score_universe, build_portfolio, build_portfolios_by_tier
@@ -142,8 +143,11 @@ def assemble_payload(funda_rows: List[dict], news_map: dict | None = None,
         "universe_size": universe_size if universe_size is not None else len(funda_rows),
         "scored_count": len(scored),
         "failed_tickers": failed,
-        "weights": {k: round(v, 3) for k, v in WEIGHTS.items()},
-        "strategy": STRATEGY,
+        "weights": {k: round(v, 3) for k, v in strategy_mod.active().weights.items()},
+        "strategy": {**STRATEGY, "version": strategy_mod.active().version,
+                     "label": strategy_mod.active().label,
+                     "available_versions": strategy_mod.list_versions()},
+        "strategy_version": strategy_mod.active().version,
         "portfolio": portfolio,
         "tier_portfolios": tier_portfolios,
         "tier_counts": tier_counts,
@@ -157,7 +161,7 @@ def assemble_payload(funda_rows: List[dict], news_map: dict | None = None,
     }
 
 
-def analyze_ticker(ticker: str) -> dict:
+def analyze_ticker(ticker: str, strategy_version: str | None = None) -> dict:
     """Run the full multibagger algorithm on a SINGLE stock and return its
     score breakdown — for the 'analyze any company' search.
 
@@ -207,7 +211,7 @@ def analyze_ticker(ticker: str) -> dict:
 
     # User explicitly asked for this stock → never hard-reject it on the
     # portfolio liquidity/cap floors; flag concerns as warnings instead.
-    scored = score_universe(rows, news_map, force_include={ticker})
+    scored = score_universe(rows, news_map, force_include={ticker}, strategy_version=strategy_version)
     me = next((s for s in scored if s["ticker"] == ticker), None)
     if not me:
         return {"available": False, "ticker": ticker,
@@ -230,7 +234,10 @@ def analyze_ticker(ticker: str) -> dict:
     # peer context: where it ranks among everything scored
     me["rank"] = scored.index(me) + 1
     me["scored_total"] = len(scored)
-    me["weights"] = {k: round(v, 3) for k, v in WEIGHTS.items()}
+    used = strategy_mod.get(strategy_version) if strategy_version else strategy_mod.active()
+    me["weights"] = {k: round(v, 3) for k, v in used.weights.items()}
+    me["strategy_version"] = used.version
+    me["available_strategies"] = strategy_mod.list_versions()
     me["available"] = True
     return me
 

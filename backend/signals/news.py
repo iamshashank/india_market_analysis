@@ -263,15 +263,43 @@ def analyze(ticker: str, limit: int = 8) -> dict:
     import math
     catalyst = round(50.0 + 50.0 * math.tanh(total / 5.0), 1)
 
+    velocity, recent_count = _news_velocity(enriched)
+
     return {
         "ticker": ticker,
         "catalyst_score": catalyst,
         "news_count": len(headlines),
+        "recent_count": recent_count,
+        "velocity": velocity,
         "positive": pos,
         "negative": neg,
         "headlines": enriched,
         "top_events": _top_events(enriched),
     }
+
+
+def _news_velocity(enriched: List[dict]) -> Tuple[Optional[float], int]:
+    """Ratio of recent (<=10d) headline rate to the prior (11-45d) rate.
+    >1 = coverage accelerating (attention waking up). None when no dated news."""
+    recent = older = 0
+    for h in enriched:
+        d = h.get("date")
+        if not d:
+            continue
+        try:
+            age = (_dt.date.today() - _dt.date.fromisoformat(d)).days
+        except Exception:  # noqa: BLE001
+            continue
+        if age <= 10:
+            recent += 1
+        elif age <= 45:
+            older += 1
+    if recent == 0 and older == 0:
+        return None, 0
+    older_rate = (older / 35.0) if older else 0.0
+    if older_rate <= 0:
+        return (1.5 if recent >= 2 else 1.1 if recent == 1 else None), recent
+    return round((recent / 10.0) / older_rate, 2), recent
 
 
 def _top_events(enriched: List[dict]) -> List[str]:
