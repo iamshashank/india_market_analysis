@@ -37,7 +37,7 @@ def _ranks(vals: List[float]) -> List[float]:
     return ranks
 
 
-def _spearman(xs: List[float], ys: List[float]) -> Optional[float]:
+def spearman(xs: List[float], ys: List[float]) -> Optional[float]:
     """Spearman rank correlation (Information Coefficient) of score vs return."""
     n = len(xs)
     if n < 5:
@@ -52,7 +52,7 @@ def _spearman(xs: List[float], ys: List[float]) -> Optional[float]:
     return cov / ((vx * vy) ** 0.5)
 
 
-def _quantile_spread(pairs: List[tuple]) -> Optional[float]:
+def quantile_spread(pairs: List[tuple]) -> Optional[float]:
     """Top-quartile minus bottom-quartile average forward return (the tradeable edge)."""
     if len(pairs) < 8:
         return None
@@ -60,6 +60,11 @@ def _quantile_spread(pairs: List[tuple]) -> Optional[float]:
     q = max(1, len(s) // 4)
     top, bot = s[-q:], s[:q]
     return round(sum(p[1] for p in top) / len(top) - sum(p[1] for p in bot) / len(bot), 2)
+
+
+# Back-compat private aliases (used within this module).
+_spearman = spearman
+_quantile_spread = quantile_spread
 
 
 def _index_return(symbol: str, baseline_date: str) -> Optional[float]:

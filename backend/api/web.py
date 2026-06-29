@@ -283,6 +283,21 @@ def api_backtest():
     return jsonify(data)
 
 
+_cmp_cache: dict = {}
+
+
+@app.route("/api/strategy-compare")
+def api_strategy_compare():
+    from signals import strategy_compare
+    now = time.time()
+    if _cmp_cache.get("data") and now - _cmp_cache.get("ts", 0) < 3600:
+        return jsonify(_cmp_cache["data"])
+    data = strategy_compare.compare()
+    _cmp_cache["data"] = data
+    _cmp_cache["ts"] = now
+    return jsonify(data)
+
+
 # ---------- portfolio (real holdings: manual / CSV / broker API) ----------
 
 @app.route("/api/portfolio")

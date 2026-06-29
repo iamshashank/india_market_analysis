@@ -1,0 +1,19 @@
+brokers -
+zerodha kite
+groww
+indmoney
+
+news -
+yahoon finance
+google finance
+et markets
+monecontrol
+live mint
+
+misc -
+vested shorts
+groww daily digest
+sensibull
+streak
+tradingview
+tickertape
